@@ -69,10 +69,17 @@ export function tableSuspicion(state: GameState): Partial<Record<SeatId, number>
   return out;
 }
 
-function emitTrace(state: GameState, trace: AgentTrace, emit?: Emit) {
-  if (state.mode !== "watch" || !emit) return;
-  const name = PERSONAS[seatOf(state, trace.seat).persona!].name;
-  emit({ type: "suspicion", table: tableSuspicion(state), reason: `${name}: ${trace.privateNote}` });
+/**
+ * Watch mode streams the table's average read after each agent turn. Never a private note:
+ * notes can reveal a role (an imposter writing "I don't know the word"), and roles stay on the
+ * server until reveal. Stops once the viewer takes a seat and becomes a player.
+ */
+function emitTrace(state: GameState, _trace: AgentTrace, emit?: Emit) {
+  if (state.mode !== "watch" || humanSeat(state) || !emit) return;
+  const table = tableSuspicion(state);
+  const [top, p] = (Object.entries(table) as [SeatId, number][]).sort((a, b) => b[1] - a[1])[0] ?? [];
+  const reason = top && p > 0 ? `The table leans toward ${PERSONAS[seatOf(state, top).persona!].name}.` : "The table has no read yet.";
+  emit({ type: "suspicion", table, reason });
 }
 
 /** The agent that should answer a human message: the one @mentioned, else the human's top target. */
