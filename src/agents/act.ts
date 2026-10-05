@@ -1,4 +1,5 @@
-import { generateText, Output } from "ai";
+import { generateText, Output, type LanguageModel } from "ai";
+import { google, type GoogleLanguageModelOptions } from "@ai-sdk/google";
 import type { z } from "zod";
 import { seatOf } from "@/engine/game";
 import { scrubSecret, validateClue, validateVote } from "@/engine/validate";
@@ -22,9 +23,10 @@ import { CivilianClueMove, DiscussMove, GuessMove, ImposterClueMove, VoteMove } 
  * throw: a failed or slow model call becomes a flagged fallback move, so the game never
  * stalls. Every call returns a trace for Brain Replay.
  *
- * Model routing (plan §11): civilians use MODELS.civilian, the imposter seat MODELS.imposter.
- * Through the AI Gateway these are plain "provider/model" strings; AI_GATEWAY_API_KEY is read
- * by the SDK. Structured output is generateText + Output.object (see NOTES.md).
+ * Model routing (plan §11, ADR 0010): civilians use MODELS.civilian, the imposter seat
+ * MODELS.imposter. A bare Gemini id ("gemini-3.5-flash") goes straight to Google with
+ * GOOGLE_GENERATIVE_AI_API_KEY; a "provider/model" id goes through the Vercel AI Gateway with
+ * AI_GATEWAY_API_KEY. Structured output is generateText + Output.object (see NOTES.md).
  */
 
 export interface Models {
@@ -33,11 +35,24 @@ export interface Models {
   memory: string;
 }
 
+/** Gemini by default (ADR 0010). Set MODEL_* to "anthropic/claude-…" ids to use the gateway instead. */
 export const MODELS: Models = {
-  civilian: process.env.MODEL_CIVILIAN ?? "anthropic/claude-haiku-4.5",
-  imposter: process.env.MODEL_IMPOSTER ?? "anthropic/claude-sonnet-5.5",
-  memory: process.env.MODEL_MEMORY ?? "anthropic/claude-haiku-4.5",
+  civilian: process.env.MODEL_CIVILIAN ?? "gemini-3.5-flash-lite",
+  imposter: process.env.MODEL_IMPOSTER ?? "gemini-3.5-flash",
+  memory: process.env.MODEL_MEMORY ?? "gemini-3.5-flash-lite",
 };
+
+/** "gemini-…" → the Google provider; anything with a "/" → the AI Gateway. */
+export function languageModel(id: string): LanguageModel {
+  return id.includes("/") ? id : google(id);
+}
+
+/** Low thinking keeps turns near a second or two; Gemini 2.5 takes a token budget instead. */
+function providerOptions(id: string) {
+  if (id.includes("/")) return undefined;
+  const thinkingConfig = id.startsWith("gemini-2.5") ? { thinkingBudget: 512 } : { thinkingLevel: "low" as const };
+  return { google: { thinkingConfig } satisfies GoogleLanguageModelOptions };
+}
 
 /** Per-call timeout. On timeout the fallback path runs. */
 export const CALL_TIMEOUT_MS = 12_000;
@@ -64,10 +79,61 @@ export type ModelCall = <S extends z.ZodType>(req: {
   schema: S;
 }) => Promise<{ output: z.infer<S>; costUsd?: number; inputTokens?: number; outputTokens?: number }>;
 
-/** The real model call through the AI SDK. */
-export const gatewayCall: ModelCall = async ({ model, system, prompt, schema }) => {
+/**
+ * Per-model request pacing. Free-tier Gemini keys allow 15 requests per minute per model
+ * (quota GenerateRequestsPerMinutePerProjectPerModel-FreeTier); a game makes ~21 calls in ~20 s,
+ * so unpaced it starts failing within a minute. MODEL_RPM overrides; 0 disables. Gateway ids
+ * ("provider/model") aren't paced.
+ */
+const RPM = Number(process.env.MODEL_RPM ?? 14);
+const WINDOW_MS = 60_000;
+const recent = new Map<string, number[]>();
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function pace(model: string, now: () => number = Date.now): Promise<void> {
+  if (model.includes("/") || !(RPM > 0)) return;
+  for (;;) {
+    const t = now();
+    const stamps = (recent.get(model) ?? []).filter((s) => t - s < WINDOW_MS);
+    if (stamps.length < RPM) {
+      stamps.push(t);
+      recent.set(model, stamps);
+      return;
+    }
+    await sleep(WINDOW_MS - (t - stamps[0]) + 50);
+  }
+}
+
+/** Seconds Google asks us to wait on a 429, if it says. */
+function retryDelayMs(err: unknown): number | undefined {
+  const e = err as { statusCode?: number; responseBody?: string };
+  if (e?.statusCode !== 429) return undefined;
+  const s = /"retryDelay":\s*"(\d+(?:\.\d+)?)s"/.exec(e.responseBody ?? "")?.[1];
+  return s ? Number(s) * 1000 : 10_000;
+}
+
+const MAX_RATE_WAIT_MS = 30_000;
+
+/** The real model call through the AI SDK (Google directly, or the gateway). */
+export const modelCall: ModelCall = async (req) => {
+  await pace(req.model);
+  try {
+    return await callOnce(req);
+  } catch (err) {
+    // One retry on a rate limit, after the delay Google asks for (capped).
+    const wait = retryDelayMs(err);
+    if (wait === undefined || wait > MAX_RATE_WAIT_MS) throw err;
+    await sleep(wait);
+    await pace(req.model);
+    return callOnce(req);
+  }
+};
+
+const callOnce: ModelCall = async ({ model, system, prompt, schema }) => {
   const result = await generateText({
-    model,
+    model: languageModel(model),
+    providerOptions: providerOptions(model),
     system,
     prompt,
     output: Output.object({ schema }),
@@ -97,6 +163,10 @@ interface Ctx {
   model: string;
   rand: () => number;
   call: ModelCall;
+  /** Tokens used by this turn's calls, for the sim. */
+  tokens: number;
+  /** Last model-call failure this turn, if any. */
+  error?: string;
 }
 
 function context(state: GameState, seat: SeatId, opts: ActOptions = {}): Ctx {
@@ -109,8 +179,18 @@ function context(state: GameState, seat: SeatId, opts: ActOptions = {}): Ctx {
     persona: PERSONAS[s.persona],
     model: modelFor(state, seat, { ...MODELS, ...opts.models }),
     rand: opts.rand ?? Math.random,
-    call: opts.call ?? gatewayCall,
+    call: opts.call ?? modelCall,
+    tokens: 0,
   };
+}
+
+/** Shorten to `max` characters at a word boundary, with an ellipsis when cut. */
+export function clip(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.!?-]+$/, "")}…`;
 }
 
 const clamp01 = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : undefined);
@@ -151,7 +231,7 @@ function trace(ctx: Ctx, phase: Phase, fields: Partial<AgentTrace> & { privateNo
     seat: ctx.seat,
     phase,
     at: Date.now(),
-    privateNote: (fields.privateNote ?? "").trim().slice(0, NOTE_CHARS),
+    privateNote: clip(fields.privateNote ?? "", NOTE_CHARS),
     suspicion: fields.suspicion ?? ctx.view.myPriorSuspicion,
     model: ctx.model,
     latencyMs: Date.now() - started,
@@ -160,6 +240,8 @@ function trace(ctx: Ctx, phase: Phase, fields: Partial<AgentTrace> & { privateNo
     ...(fields.hunch ? { hunch: true } : {}),
     ...(fields.fallback ? { fallback: true } : {}),
     ...(fields.costUsd !== undefined ? { costUsd: fields.costUsd } : {}),
+    ...(ctx.tokens ? { tokens: ctx.tokens } : {}),
+    ...(fields.fallback && ctx.error ? { error: ctx.error } : {}),
   };
 }
 
@@ -170,9 +252,12 @@ async function tryCall<S extends z.ZodType>(
 ): Promise<{ output: z.infer<S>; costUsd?: number } | { error: string }> {
   try {
     const r = await ctx.call({ model: ctx.model, system: systemPrompt(ctx.persona, ctx.view), prompt, schema });
+    ctx.tokens += (r.inputTokens ?? 0) + (r.outputTokens ?? 0);
     return { output: r.output, costUsd: r.costUsd };
   } catch (err) {
-    return { error: err instanceof Error ? err.message.slice(0, 120) : "model call failed" };
+    const e = err as { statusCode?: number; message?: string };
+    ctx.error = `${e?.statusCode ?? ""} ${String(e?.message ?? "model call failed")}`.trim().slice(0, 120);
+    return { error: ctx.error };
   }
 }
 
@@ -265,7 +350,7 @@ export async function actDiscuss(
     };
   }
   const civilian = ctx.view.word !== null;
-  let text = r.output.text.trim().slice(0, MESSAGE_CHARS);
+  let text = clip(r.output.text, MESSAGE_CHARS);
   if (civilian) text = scrubSecret(state, text);
   const replyTo =
     r.output.replyTo && r.output.replyTo !== seat && ctx.view.players.includes(r.output.replyTo)
@@ -304,7 +389,7 @@ export async function actVote(state: GameState, seat: SeatId, opts?: ActOptions)
   const hunch = target === order[0] && order.length > 1 && ctx.rand() < ctx.persona.knobs.chaos / 20;
   if (hunch) target = order[1];
 
-  let reason = (r.output.reason ?? "").trim().slice(0, REASON_CHARS) || "Gut feeling.";
+  let reason = clip(r.output.reason ?? "", REASON_CHARS) || "Gut feeling.";
   if (ctx.view.word !== null) reason = scrubSecret(state, reason);
   return {
     move: { seat, target, reason, confidence: clamp01(r.output.confidence) ?? 0.5 },
