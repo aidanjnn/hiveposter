@@ -78,6 +78,10 @@ export interface AgentTrace {
   retried?: boolean;
   /** Chaos knob fired: voted for the second suspect. */
   hunch?: boolean;
+  /** The model failed or timed out and a safe default move was played. */
+  fallback?: boolean;
+  /** Gateway-reported cost of this turn's calls, when available. */
+  costUsd?: number;
 }
 
 export interface GameResult {
