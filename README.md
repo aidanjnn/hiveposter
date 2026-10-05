@@ -19,7 +19,7 @@ Phone width is the intended layout. **Play** puts you at the table with Juno, Bi
 
 ## What I built
 
-A daily party game where the AI players are real players, not a referee. One table, four seats, one imposter. A new word set every day (30 hand-written sets with close decoys), a streak, and a share card. Agents remember how you play and hold grudges when you vote them out wrongly.
+A daily party game where the AI players are real players, not a referee. One table, four seats, one imposter. A new word set every day (30 hand-written sets with close decoys), a streak, and a share card. Agents remember how you play and hold grudges when you vote for them and they weren't the imposter.
 
 After every reveal, **Brain Replay** shows what the agents were actually thinking: each agent's private note per turn, a sparkline of its suspicion of the real imposter, and the imposter's running guesses at the word. **Watch mode** runs four agents against each other while you try to call the imposter early for more points, and lets you take over a seat mid-game.
 
@@ -57,7 +57,7 @@ pnpm sim -- --games 10 --civ anthropic/claude-haiku-4.5 --imp anthropic/claude-s
 
 ## Tools
 
-Next.js 16 (App Router), AI SDK 7 with the Vercel AI Gateway, Zod 4, Tailwind 4, Vitest, GitHub Actions. Deployed on Vercel.
+Next.js 16 (App Router), AI SDK 7 with the Vercel AI Gateway, Zod 4, Tailwind 4, Vitest, GitHub Actions. Built for Vercel.
 
 ## Deliberate design choices
 
@@ -66,7 +66,7 @@ Next.js 16 (App Router), AI SDK 7 with the Vercel AI Gateway, Zod 4, Tailwind 4,
 - **Reasoning only after the game.** Brain Replay is locked until the reveal so it can't spoil a round. Watch mode streams a table-average read live because the viewer isn't playing.
 - **Ties favor the imposter.** That makes "I'm sure" and every vote matter.
 - **Streamed turns, no sockets.** Each phase is one streamed POST; clues and votes land one at a time ([ADR 0007](docs/adr/0007-sse-and-in-memory-store.md)).
-- **One dark theme, three type sizes** ([ADR 0008](docs/adr/0008-design-system-from-jasonyuan-design.md)). Players are 8px dots, and red appears in exactly four places. The words carry the screen.
+- **One dark theme, a small type scale** ([ADR 0008](docs/adr/0008-design-system-from-jasonyuan-design.md)). Players are 8px dots, red is kept for the imposter and urgency, and the words carry the screen.
 - **In-memory game store for v1.** A recycled serverless instance drops an in-progress table and shows "Table reset. Deal again." A KV store is the first upgrade.
 
 ## What I'd do next
