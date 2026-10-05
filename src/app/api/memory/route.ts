@@ -57,8 +57,12 @@ export async function POST(req: Request) {
   memorized.set(id, record);
   const view = viewOf(state);
   const personas = [...new Set(view.seats.map((s) => s.persona).filter((p): p is PersonaId => Boolean(p)))];
-  // An overlapping request waits for the attempt in flight rather than starting another.
-  while (record.pending) await record.pending;
+  // An overlapping request shares the attempt in flight and never starts one of its own,
+  // so a burst of requests during an outage can't use up the retries.
+  if (record.pending) {
+    await record.pending;
+    return Response.json({ memory: record.memory });
+  }
   // A retry gets the cached summaries back and only re-asks for the ones that failed.
   const missing = personas.filter((p) => !record.memory[p]);
   if (missing.length && record.attempts < MAX_ATTEMPTS) {
