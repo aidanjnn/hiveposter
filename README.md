@@ -61,8 +61,12 @@ The split is meant to be justified by measurement, not assertion: `pnpm sim` pla
 
 _Pending: the gateway account currently refuses requests until a card is on file (`403 customer_verification_required`). Targets from [plan §11](docs/plan.md#11-eval-harness-and-model-pick): imposter win rate 35–50%, clue rejections under 10%, vote accuracy Juno > Rook > Biscuit, average turn under 2.5 s._
 
+Each run prints one row, so the table takes three runs (add `--verbose` to print each game's transcript):
+
 ```sh
-pnpm sim -- --games 10 --civ anthropic/claude-haiku-4.5 --imp anthropic/claude-sonnet-5.5 --verbose
+pnpm sim -- --games 10 --civ anthropic/claude-haiku-4.5 --imp anthropic/claude-sonnet-5.5
+pnpm sim -- --games 10 --civ anthropic/claude-haiku-4.5 --imp anthropic/claude-haiku-4.5
+pnpm sim -- --games 10 --civ anthropic/claude-sonnet-5.5 --imp anthropic/claude-sonnet-5.5
 ```
 
 ## Tools
