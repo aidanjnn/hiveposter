@@ -32,7 +32,7 @@ export const HumanBody = z.discriminatedUnion("type", [
   z.object({ type: z.literal("sure") }),
   z.object({ type: z.literal("vote"), target: seatId }),
   z.object({ type: z.literal("guess"), word: z.string().max(40) }),
-  z.object({ type: z.literal("call"), target: seatId }),
+  z.object({ type: z.literal("call"), target: seatId, seenPhase: z.enum(["clue1", "clue2", "discuss", "vote"]).optional() }),
   z.object({ type: z.literal("takeSeat"), seat: seatId }),
 ]);
 
@@ -58,6 +58,26 @@ export function create(body: z.infer<typeof CreateBody>): GameState {
   });
   putGame(state);
   return state;
+}
+
+/**
+ * Watch-mode moves that don't start agent turns: lock a call, take a seat. Applied under the
+ * game lock so an in-flight turn can't overwrite them, and answered with plain JSON.
+ */
+export async function applyAside(id: string, move: Extract<HumanMove, { type: "call" | "takeSeat" }>): Promise<Response> {
+  if (!getGame(id)) return badRequest(TABLE_RESET, 404);
+  return withGame(id, async () => {
+    const state = getGame(id);
+    if (!state) return badRequest(TABLE_RESET, 404);
+    try {
+      const next = applyHumanMove(state, move);
+      putGame(next);
+      return Response.json({ view: viewOf(next) });
+    } catch (err) {
+      if (err instanceof MoveError || err instanceof EngineError) return badRequest(err.message);
+      throw err;
+    }
+  });
 }
 
 /**
@@ -91,7 +111,7 @@ export async function advance(id: string, move?: HumanMove): Promise<Response> {
       putGame(state);
       if (move?.type === "clue") stream.send({ type: "clue", clue: state.clues[state.clues.length - 1] });
       if (move?.type === "message") stream.send({ type: "message", message: state.messages[state.messages.length - 1] });
-      state = await runUntilHuman(state, { emit: (e) => stream.send(e) });
+      state = await runUntilHuman(state, { emit: (e) => stream.send(e), onePhase: true });
       putGame(state);
       stream.send({ type: "view", view: viewOf(state) });
     } catch (err) {
