@@ -86,6 +86,8 @@ export interface AgentTrace {
   error?: string;
   /** Gateway-reported cost of this turn's calls, when available. */
   costUsd?: number;
+  /** Input + output tokens across this turn's calls. */
+  tokens?: number;
 }
 
 export interface GameResult {

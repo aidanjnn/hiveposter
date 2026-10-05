@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createGame } from "@/engine/game";
 import type { GameEvent, GameState, SeatId } from "@/engine/types";
-import { actClue, actDiscuss, actVote, blendSuspicion, candidateIndex, type ModelCall } from "./act";
+import { actClue, actDiscuss, actVote, blendSuspicion, candidateIndex, clip, pace, type ModelCall } from "./act";
 import { gameSummary, mergeNotes, summarizeForPersona } from "./memory";
 import { PERSONAS } from "./personas";
 import { seatView } from "@/engine/view";
@@ -55,6 +55,40 @@ function withImposter(state: GameState, imposter: SeatId): GameState {
 }
 
 describe("act", () => {
+  it("paces Gemini calls to 14 a minute per model and leaves gateway ids alone", async () => {
+    vi.useFakeTimers();
+    try {
+      let t = 0;
+      const now = () => t;
+      for (let i = 0; i < 14; i++) await pace("gemini-test-a", now);
+      await pace("gemini-test-b", now);
+      for (let i = 0; i < 30; i++) await pace("anthropic/claude-test", now);
+      let done = false;
+      const waiting = pace("gemini-test-a", now).then(() => (done = true));
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(done).toBe(false);
+      t = 60_100;
+      await vi.advanceTimersByTimeAsync(60_000);
+      await waiting;
+      expect(done).toBe(true);
+      // With a deadline it gives up rather than waiting out the window.
+      for (let i = 0; i < 14; i++) await pace("gemini-test-c", now);
+      expect(await pace("gemini-test-c", now, t + 10_000)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clips long text at a word boundary", () => {
+    expect(clip("short", 140)).toBe("short");
+    const long = "I'm at 55% on you, Biscuit, because food could fit anything at all in this category and you know it";
+    const out = clip(long, 60);
+    expect(out.length).toBeLessThanOrEqual(60);
+    expect(out.endsWith("…")).toBe(true);
+    expect(out).not.toMatch(/\s…$/);
+    expect(long.startsWith(out.slice(0, -1))).toBe(true);
+  });
+
   it("maps the specificity knob to a candidate index", () => {
     expect([1, 3, 4, 5.5, 7, 8, 10].map(candidateIndex)).toEqual([0, 0, 1, 1, 1, 2, 2]);
   });

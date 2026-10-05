@@ -9,7 +9,7 @@ A social deduction word game you play at a table with three AI players who have 
 
   ```sh
   pnpm install
-  cp .env.example .env.local   # then add AI_GATEWAY_API_KEY
+  cp .env.example .env.local   # then add GOOGLE_GENERATIVE_AI_API_KEY
   pnpm dev                     # http://localhost:3000
   ```
 
@@ -45,33 +45,33 @@ The code is the referee and the model only gets a seat ([ADR 0002](docs/adr/0002
 
 ## Model and why
 
-Claude through the Vercel AI Gateway ([ADR 0004](docs/adr/0004-claude-via-ai-gateway.md)): **Haiku 4.5** for civilian turns and **Sonnet 5.5** for the imposter seat.
+Gemini, called directly ([ADR 0010](docs/adr/0010-gemini-flash-split.md)): **Gemini 3.5 Flash-Lite** for civilian turns and memory, **Gemini 3.5 Flash** with low thinking for the imposter seat. Claude through the Vercel AI Gateway ([ADR 0004](docs/adr/0004-claude-via-ai-gateway.md)) was the first pick, but the gateway account refused calls until a card was on file. Any `provider/model` id still routes through the gateway, so switching back is a `MODEL_*` env change.
 
 - The engine depends on strict structured output every turn, so schema-following matters more than prose quality.
 - Bluffing and inferring the word are the hardest reasoning in the game, and they all happen in one seat, so that seat gets the stronger model.
 - Three agents act every phase, so the rest run on the fast, cheap model, in parallel where the rules allow.
 
-The split is meant to be justified by measurement, not assertion: `pnpm sim` plays headless four-agent games and prints this table.
+The split is meant to be justified by measurement, not assertion: `pnpm sim` plays headless four-agent games and prints this table. It hasn't been run on Gemini yet, so for now the split is a judgment call.
 
-| Config (civilian / imposter) | Imposter win rate | Caught but guessed | Clue rejections | Fallback moves | Avg turn latency | Cost / game |
-| --- | --- | --- | --- | --- | --- | --- |
-| haiku-4.5 / sonnet-5.5 | _pending_ | | | | | |
-| haiku-4.5 / haiku-4.5 | _pending_ | | | | | |
-| sonnet-5.5 / sonnet-5.5 | _pending_ | | | | | |
+| Config (civilian / imposter) | Imposter win rate | Caught but guessed | Clue rejections | Fallback moves | Avg turn latency | Tokens / game | Cost / game |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| flash-lite / flash | _pending_ | | | | | | |
+| flash-lite / flash-lite | _pending_ | | | | | | |
+| flash / flash | _pending_ | | | | | | |
 
-_Pending: the gateway account currently refuses requests until a card is on file (`403 customer_verification_required`). Targets from [plan §11](docs/plan.md#11-eval-harness-and-model-pick): imposter win rate 35–50%, clue rejections under 10%, vote accuracy Juno > Rook > Biscuit, average turn under 2.5 s._
+_Targets from [plan §11](docs/plan.md#11-eval-harness-and-model-pick): imposter win rate 35–50%, clue rejections under 10%, vote accuracy Juno > Rook > Biscuit, average turn under 2.5 s._
 
-Each run prints one row, so the table takes three runs (add `--verbose` to print each game's transcript):
+Each run prints one row, so the table takes three runs (add `--verbose` to print each game's transcript). Free-tier keys allow about 15 requests a minute per model, so the sim plays one game at a time and waits out rate limits instead of falling back, which makes a 10-game run take several minutes.
 
 ```sh
-pnpm sim -- --games 10 --civ anthropic/claude-haiku-4.5 --imp anthropic/claude-sonnet-5.5
-pnpm sim -- --games 10 --civ anthropic/claude-haiku-4.5 --imp anthropic/claude-haiku-4.5
-pnpm sim -- --games 10 --civ anthropic/claude-sonnet-5.5 --imp anthropic/claude-sonnet-5.5
+pnpm sim -- --games 10 --civ gemini-3.5-flash-lite --imp gemini-3.5-flash
+pnpm sim -- --games 10 --civ gemini-3.5-flash-lite --imp gemini-3.5-flash-lite
+pnpm sim -- --games 10 --civ gemini-3.5-flash --imp gemini-3.5-flash
 ```
 
 ## Tools
 
-Next.js 16 (App Router), AI SDK 7 with the Vercel AI Gateway, Zod 4, Tailwind 4, Vitest, GitHub Actions. Built for Vercel.
+Next.js 16 (App Router), AI SDK 7 with the Google provider (the Vercel AI Gateway for `provider/model` ids), Zod 4, Tailwind 4, Vitest, GitHub Actions. Built for Vercel.
 
 ## Deliberate design choices
 

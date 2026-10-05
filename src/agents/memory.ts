@@ -1,5 +1,5 @@
 import type { PersonaId, PublicView } from "@/engine/types";
-import { gatewayCall, MODELS, type ModelCall } from "./act";
+import { modelCall, MODELS, type ModelCall } from "./act";
 import { scrubWord } from "@/engine/validate";
 import { PERSONAS } from "./personas";
 import { memoryPrompt } from "./prompts";
@@ -38,7 +38,7 @@ export async function summarizeForPersona(
   persona: PersonaId,
   view: PublicView,
   existingNotes: string[],
-  call: ModelCall = gatewayCall,
+  call: ModelCall = modelCall,
 ): Promise<MemoryUpdate> {
   const p = PERSONAS[persona];
   const { output } = await call({

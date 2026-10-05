@@ -1,6 +1,6 @@
 # 0004. Claude through the Vercel AI Gateway, Haiku/Sonnet split measured by simulation
 
-Date: 2026-10-04 · Status: Accepted
+Date: 2026-10-04 · Status: Superseded by [0010](0010-gemini-flash-split.md)
 
 ## Context
 

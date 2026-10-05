@@ -9,14 +9,15 @@
  *
  * Flags: --games N (default 5)  --civ MODEL  --imp MODEL  --concurrency N (default 3)
  *        --verbose (print each game's transcript)
- * Needs AI_GATEWAY_API_KEY in .env.local or the environment.
+ * Gemini ids ("gemini-3.5-flash") need GOOGLE_GENERATIVE_AI_API_KEY; "provider/model" ids
+ * go through the AI Gateway and need AI_GATEWAY_API_KEY. Both are read from .env.local.
  */
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 
 import { createGame, imposterOf } from "../src/engine/game";
 import type { GameState, SeatId } from "../src/engine/types";
-import { MODELS } from "../src/agents/act";
+import { MODELS, setRateWaitBudget } from "../src/agents/act";
 import { WATCH_LINEUP, PERSONAS } from "../src/agents/personas";
 import { runUntilHuman } from "../src/agents/runner";
 
@@ -28,11 +29,14 @@ function flag(name: string, fallback?: string): string | undefined {
 }
 
 const games = Number(flag("games", "5"));
-const concurrency = Number(flag("concurrency", "3"));
+// Free-tier Gemini keys rate-limit per minute; one game at a time stays under it.
+const concurrency = Number(flag("concurrency", "1"));
 const verbose = flag("verbose") === "true";
 const models = { civilian: flag("civ", MODELS.civilian)!, imposter: flag("imp", MODELS.imposter)! };
+// No route limit here: wait out rate limits rather than measure fallback play.
+setRateWaitBudget(Infinity);
 
-const short = (m: string) => m.replace(/^anthropic\/claude-/, "");
+const short = (m: string) => m.replace(/^anthropic\/claude-/, "").replace(/^gemini-/, "gemini ");
 
 function transcript(g: GameState): string {
   const name = (s: SeatId) => PERSONAS[s as keyof typeof PERSONAS]?.name ?? s;
@@ -51,8 +55,11 @@ async function playOne(i: number): Promise<GameState> {
 }
 
 async function main() {
-  if (!process.env.AI_GATEWAY_API_KEY) {
-    console.error("AI_GATEWAY_API_KEY is not set. Add it to .env.local.");
+  // Each seat's model needs its own key; a missing one would quietly turn that seat into fallbacks.
+  const needs = new Set([models.civilian, models.imposter].map((m) => (m.includes("/") ? "AI_GATEWAY_API_KEY" : "GOOGLE_GENERATIVE_AI_API_KEY")));
+  const missing = [...needs].filter((k) => !process.env[k]);
+  if (missing.length) {
+    console.error(`Set ${missing.join(" and ")} in .env.local.`);
     process.exit(1);
   }
   console.log(`Simulating ${games} games · civilians ${short(models.civilian)} · imposter ${short(models.imposter)}\n`);
@@ -82,12 +89,13 @@ async function main() {
   const avgLatency = latency.length ? latency.reduce((a, b) => a + b, 0) / latency.length : NaN;
   const costs = traces.map((t) => t.costUsd).filter((c): c is number => c !== undefined);
   const costPerGame = costs.length ? costs.reduce((a, b) => a + b, 0) / results.length : NaN;
+  const tokensPerGame = traces.reduce((a, t) => a + (t.tokens ?? 0), 0) / Math.max(1, results.length);
 
   const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "n/a");
-  console.log(`\n| Config (civilian / imposter) | Imposter win rate | Caught but guessed | Clue rejections | Fallback moves | Avg turn latency | Cost / game |`);
-  console.log(`| --- | --- | --- | --- | --- | --- | --- |`);
+  console.log(`\n| Config (civilian / imposter) | Imposter win rate | Caught but guessed | Clue rejections | Fallback moves | Avg turn latency | Tokens / game | Cost / game |`);
+  console.log(`| --- | --- | --- | --- | --- | --- | --- | --- |`);
   console.log(
-    `| ${short(models.civilian)} / ${short(models.imposter)} | ${pct(impWins, results.length)} (${impWins}/${results.length}) | ${caughtGuessed} | ${pct(rejected, clueTraces.length)} | ${pct(fallbacks, traces.length)} | ${Number.isFinite(avgLatency) ? `${(avgLatency / 1000).toFixed(1)}s` : "n/a"} | ${Number.isFinite(costPerGame) ? `$${costPerGame.toFixed(4)}` : "n/a"} |`,
+    `| ${short(models.civilian)} / ${short(models.imposter)} | ${pct(impWins, results.length)} (${impWins}/${results.length}) | ${caughtGuessed} | ${pct(rejected, clueTraces.length)} | ${pct(fallbacks, traces.length)} | ${Number.isFinite(avgLatency) ? `${(avgLatency / 1000).toFixed(1)}s` : "n/a"} | ${Math.round(tokensPerGame).toLocaleString()} | ${Number.isFinite(costPerGame) ? `$${costPerGame.toFixed(4)}` : "n/a"} |`,
   );
 
   console.log(`\nVote accuracy as civilian (voted for the real imposter):`);
@@ -113,7 +121,7 @@ async function main() {
   const hunches = traces.filter((t) => t.hunch).length;
   console.log(`\nHunch votes: ${hunches} · wall time ${((Date.now() - started) / 1000).toFixed(0)}s`);
   if (fallbacks === traces.length) {
-    console.log("\nEvery move was a fallback: the model calls failed. Check the gateway key and billing.");
+    console.log("\nEvery move was a fallback: the model calls failed. Check the API key, quota and billing.");
     process.exitCode = 2;
   }
 }
