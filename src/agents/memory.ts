@@ -9,7 +9,7 @@ import { MemoryUpdate } from "./schemas";
  * line. The client merges: new notes first, cap 10 per persona, stored in localStorage.
  */
 
-export const MAX_NOTES_PER_PERSONA = 10;
+export { mergeNotes, MAX_NOTES_PER_PERSONA } from "@/lib/notes";
 const NOTE_CHARS = 100;
 const LOBBY_CHARS = 60;
 
@@ -50,17 +50,4 @@ export async function summarizeForPersona(
     notes: (output.notes ?? []).map((n) => n.trim().slice(0, NOTE_CHARS)).filter(Boolean).slice(0, 3),
     lobbyLine: (output.lobbyLine ?? "").trim().slice(0, LOBBY_CHARS),
   };
-}
-
-/** Pure merge, used on the client: new notes first, no duplicates, capped. */
-export function mergeNotes(existing: string[], incoming: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const note of [...incoming, ...existing]) {
-    const key = note.trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(note.trim());
-  }
-  return out.slice(0, MAX_NOTES_PER_PERSONA);
 }

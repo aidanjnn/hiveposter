@@ -1,5 +1,5 @@
 import type { PersonaId, Role } from "@/engine/types";
-import { mergeNotes } from "@/agents/memory";
+import { mergeNotes } from "./notes";
 
 /**
  * Plan §03, persistence. localStorage keyed by a random playerId. Every read and write is
