@@ -100,13 +100,18 @@ export function Discussion({ game, view, side }: { game: Game; view: PublicView;
               maxLength={140}
               placeholder={used >= HUMAN_CAP ? "Out of messages. Tap I'm sure." : "Say something"}
               disabled={!myTurn || game.busy || used >= HUMAN_CAP}
+              // Flagged for assistive tech only: red borders are reserved for clues (plan §00).
+              aria-invalid={Boolean(error) || undefined}
+              aria-describedby="message-error"
               className="flex-1"
             />
             <Button type="submit" disabled={!myTurn || game.busy || used >= HUMAN_CAP}>
               Send
             </Button>
           </div>
-          <span className="min-h-5 text-ink-3">{error}</span>
+          <span id="message-error" role="alert" className="min-h-5 text-ink-3">
+            {error}
+          </span>
         </form>
       ) : null}
     </Shell>
