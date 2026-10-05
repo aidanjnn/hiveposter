@@ -97,6 +97,8 @@ interface Ctx {
   model: string;
   rand: () => number;
   call: ModelCall;
+  /** Last model-call failure this turn, if any; recorded on a fallback trace. */
+  error?: string;
 }
 
 function context(state: GameState, seat: SeatId, opts: ActOptions = {}): Ctx {
@@ -157,9 +159,11 @@ function trace(ctx: Ctx, phase: Phase, fields: Partial<AgentTrace> & { privateNo
     latencyMs: Date.now() - started,
     ...(fields.wordGuesses ? { wordGuesses: fields.wordGuesses } : {}),
     ...(fields.retried ? { retried: true } : {}),
+    ...(fields.demoted ? { demoted: true } : {}),
     ...(fields.hunch ? { hunch: true } : {}),
     ...(fields.fallback ? { fallback: true } : {}),
     ...(fields.costUsd !== undefined ? { costUsd: fields.costUsd } : {}),
+    ...(fields.fallback && ctx.error ? { error: ctx.error } : {}),
   };
 }
 
@@ -172,7 +176,10 @@ async function tryCall<S extends z.ZodType>(
     const r = await ctx.call({ model: ctx.model, system: systemPrompt(ctx.persona, ctx.view), prompt, schema });
     return { output: r.output, costUsd: r.costUsd };
   } catch (err) {
-    return { error: err instanceof Error ? err.message.slice(0, 120) : "model call failed" };
+    // Keep the status and message so the sim can tell a 403 from a timeout.
+    const e = err as { statusCode?: number; message?: string };
+    ctx.error = `${e?.statusCode ?? ""} ${String(e?.message ?? "model call failed")}`.trim().slice(0, 120);
+    return { error: ctx.error };
   }
 }
 
@@ -208,7 +215,8 @@ export async function actClue(state: GameState, seat: SeatId, opts?: ActOptions)
     if ("error" in r) break;
     cost = addCost(cost, r.costUsd);
 
-    // Civilians: the knob's pick first, then the others. Imposter: its one clue.
+    // Civilians: the knob's pick first, then the others. Playing a later one is flagged
+    // `demoted` so the sim counts it as a rejection. Imposter: its one clue.
     let options: string[];
     if (imposter) {
       options = [(r.output as ImposterClueMove).clue];
@@ -231,6 +239,7 @@ export async function actClue(state: GameState, seat: SeatId, opts?: ActOptions)
               suspicion: blendSuspicion(ctx, r.output.suspicion),
               wordGuesses: imposter ? wordGuessMap((r.output as ImposterClueMove).wordGuesses) : undefined,
               retried: attempt > 0,
+              demoted: rejected !== undefined,
               costUsd: cost,
             },
             started,

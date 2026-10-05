@@ -76,10 +76,14 @@ export interface AgentTrace {
   model: string;
   latencyMs: number;
   retried?: boolean;
+  /** The knob's candidate was rejected and a lower-ranked one was played. Counts as a rejection. */
+  demoted?: boolean;
   /** Chaos knob fired: voted for the second suspect. */
   hunch?: boolean;
   /** The model failed or timed out and a safe default move was played. */
   fallback?: boolean;
+  /** Short reason the model call failed, for the simulator and debugging. Not shown in the UI. */
+  error?: string;
   /** Gateway-reported cost of this turn's calls, when available. */
   costUsd?: number;
 }
