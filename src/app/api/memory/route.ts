@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { PersonaId, PublicView } from "@/engine/types";
 import { summarizeForPersona } from "@/agents/memory";
 import { badRequest } from "@/lib/game-service";
-import { MAX_NOTES_PER_PERSONA } from "@/lib/notes";
+import { MAX_NOTES_PER_PERSONA } from "@/agents/memory";
 
 /**
  * POST /api/memory

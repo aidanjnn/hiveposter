@@ -27,7 +27,7 @@ Working notes for the implementation. Verified against the installed packages, n
 ## Next 16 route handlers
 
 - `ctx.params` is a Promise; the generated `RouteContext<"/api/game/[id]/phase">` type is used in the stubs.
-- `export const maxDuration = 60` on the two streaming routes (plan §08).
+- `export const maxDuration = 120` on the two streaming routes (plan §08 said 60; each request now ends at the first phase change, and 120 leaves room for a slow phase). The memory route uses 30.
 - Streaming a `ReadableStream` as `text/event-stream` works on the default Node.js runtime; don't set `runtime = "edge"`.
 
 ## Decisions carried from the plan
