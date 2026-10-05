@@ -105,6 +105,8 @@ export interface GameState {
   result?: GameResult;
   /** Persona memory notes about the human, keyed by persona. */
   memory: Partial<Record<PersonaId, string[]>>;
+  /** Games in a row the human voted this persona out while it was innocent. */
+  grudges: Partial<Record<PersonaId, number>>;
   createdAt: number;
 }
 
