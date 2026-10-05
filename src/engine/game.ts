@@ -239,15 +239,18 @@ const PHASE_ORDER: Phase[] = ["lobby", "deal", "clue1", "clue2", "discuss", "vot
 
 /**
  * Watch mode: the audience locks in who they think the imposter is. The client animates
- * turns behind the server, so it says which phase it was showing (`seenPhase`); the call
- * is scored at that phase as long as it isn't later than the server's.
+ * turns behind the server, so it says which phase it was showing (`seenPhase`). A stream
+ * ends at the first phase change, so the client trails by at most one phase: the call is
+ * scored at `seenPhase` if it is the server's phase or the one just before, else at the
+ * server's.
  */
 export function lockCall(state: GameState, target: SeatId, seenPhase?: Phase): GameState {
   assert(state.mode === "watch", "Calls are for Watch mode.");
   assert(!state.watchCall, "Your call is already locked.");
   assert(state.phase !== "reveal", "Too late to call it.");
   seatOf(state, target);
-  const seen = seenPhase && PHASE_ORDER.indexOf(seenPhase) <= PHASE_ORDER.indexOf(state.phase) ? seenPhase : state.phase;
+  const lag = seenPhase ? PHASE_ORDER.indexOf(state.phase) - PHASE_ORDER.indexOf(seenPhase) : -1;
+  const seen = seenPhase && (lag === 0 || lag === 1) ? seenPhase : state.phase;
   assert(CALL_POINTS[seen] !== undefined, "Calls closed at the vote.");
   return { ...state, watchCall: { target, lockedAtPhase: seen } };
 }

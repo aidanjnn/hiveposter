@@ -21,8 +21,8 @@ export const CreateBody = z.object({
   /** Always from the client: the daily seed is the player's local date (plan §04), not the server's. */
   seed: z.string().min(1).max(64),
   personas: z.array(personaId).optional(),
-  memory: z.record(z.string(), z.array(z.string().max(200)).max(10)).optional(),
-  grudges: z.record(z.string(), z.number().int().min(0).max(99)).optional(),
+  memory: z.partialRecord(personaId, z.array(z.string().max(200)).max(10)).optional(),
+  grudges: z.partialRecord(personaId, z.number().int().min(0).max(99)).optional(),
 });
 
 export const HumanBody = z.discriminatedUnion("type", [
