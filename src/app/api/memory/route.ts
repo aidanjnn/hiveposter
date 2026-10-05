@@ -3,7 +3,7 @@ import type { PersonaId } from "@/engine/types";
 import { humanSeat } from "@/engine/game";
 import { summarizeForPersona } from "@/agents/memory";
 import { badRequest, viewOf } from "@/lib/game-service";
-import { MAX_NOTES_PER_PERSONA } from "@/agents/memory";
+import { MAX_NOTES_PER_PERSONA } from "@/lib/notes";
 import { getGame } from "@/lib/store";
 
 /**
