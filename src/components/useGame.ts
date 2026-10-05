@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameEvent, HumanMove, Mode, PersonaId, PublicView, SeatId } from "@/engine/types";
-import { todaySeed } from "@/engine/words";
+import { todaySeed } from "@/engine/calendar";
 import { PLAY_LINEUP, WATCH_LINEUP } from "@/agents/personas";
 import { readEvents } from "@/lib/sse";
 import * as local from "@/lib/local";
@@ -45,6 +45,20 @@ export function useGame() {
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
   const resumed = useRef(false);
+  /** Watch call and seat taken while a turn was streaming; older streamed views lack them. */
+  const asides = useRef<Partial<Pick<PublicView, "watchCall" | "seats" | "yourRole" | "word">> | null>(null);
+  const merge = useCallback((incoming: PublicView): PublicView => {
+    const a = asides.current;
+    if (!a || incoming.phase === "reveal") return incoming;
+    const next = { ...incoming };
+    if (a.watchCall && !next.watchCall) next.watchCall = a.watchCall;
+    if (a.seats && !next.seats.some((s) => s.kind === "human")) {
+      next.seats = a.seats;
+      next.yourRole = a.yourRole;
+      next.word = a.word;
+    }
+    return next;
+  }, []);
   const recorded = useRef<string | null>(null);
 
   /**
@@ -55,8 +69,9 @@ export function useGame() {
     if (v.phase !== "reveal" || recorded.current === v.id) return;
     recorded.current = v.id;
     const self = me(v);
-    local.recordGame({
+    const first = local.recordGame({
       id: v.id,
+      mode: v.mode,
       seed: v.seed,
       setLabel: setLabel(v),
       yourRole: v.yourRole,
@@ -64,6 +79,8 @@ export function useGame() {
       score: scoreOf(v),
       at: Date.now(),
     });
+    // Already recorded (a refresh on the reveal screen): don't double grudges or ratings.
+    if (!first) return;
     if (v.mode === "watch" && v.watchCall) local.recordCall(callPoints(v) > 0);
     if (!self) return;
     local.applyGrudges(grudgeChanges(v));
@@ -88,6 +105,7 @@ export function useGame() {
     setPaused(false);
     setError(null);
     setNotice(message ?? null);
+    asides.current = null;
     local.rememberGame(null);
   }, []);
 
@@ -115,18 +133,18 @@ export function useGame() {
         case "phase":
           await sleep(PHASE_PAUSE_MS);
           finish(e.view);
-          setView(e.view);
+          setView(merge(e.view));
           break;
         case "view":
           finish(e.view);
-          setView(e.view);
+          setView(merge(e.view));
           break;
         case "error":
           setError(e.message);
           break;
       }
     }
-  }, [finish]);
+  }, [finish, merge]);
 
   /** POST and stream. Returns a user-facing error for a refused move, else null. */
   const request = useCallback(
@@ -206,7 +224,11 @@ export function useGame() {
       if (move.type !== "call" && move.type !== "takeSeat") return request(`/api/game/${view.id}/human`, move);
       // Asides don't start turns and may arrive while a turn is still streaming.
       const body = move.type === "call" ? { ...move, seenPhase: view.phase } : move;
-      if (move.type === "call") setView((v) => (v ? { ...v, watchCall: { target: move.target, lockedAtPhase: v.phase } } : v));
+      if (move.type === "call") {
+        const call = { target: move.target, lockedAtPhase: view.phase };
+        asides.current = { ...asides.current, watchCall: call };
+        setView((v) => (v ? { ...v, watchCall: call } : v));
+      }
       try {
         const res = await fetch(`/api/game/${view.id}/human`, {
           method: "POST",
@@ -215,11 +237,15 @@ export function useGame() {
         });
         const j = (await res.json().catch(() => ({}))) as { view?: PublicView; error?: string };
         if (!res.ok) {
-          if (move.type === "call") setView((v) => (v ? { ...v, watchCall: undefined } : v));
+          if (move.type === "call") {
+            asides.current = { ...asides.current, watchCall: undefined };
+            setView((v) => (v ? { ...v, watchCall: undefined } : v));
+          }
           return j.error ?? "That didn't work.";
         }
         if (move.type === "takeSeat" && j.view) {
           const next = j.view;
+          asides.current = { ...asides.current, seats: next.seats, yourRole: next.yourRole, word: next.word };
           setView((v) => (v ? { ...v, seats: next.seats, yourRole: next.yourRole, word: next.word } : next));
         }
         return null;

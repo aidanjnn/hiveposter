@@ -1,4 +1,5 @@
 import type { PersonaId, Role } from "@/engine/types";
+import { todaySeed } from "@/engine/calendar";
 import { mergeNotes } from "./notes";
 
 /**
@@ -31,6 +32,7 @@ function write(key: string, value: unknown): void {
 
 export interface GameSummary {
   id: string;
+  mode: "play" | "watch";
   seed: string;
   setLabel: string;
   yourRole?: Role;
@@ -65,24 +67,31 @@ export function getHistory(): GameSummary[] {
   return read<GameSummary[]>("history", []);
 }
 
-/** Record a finished game once. Returns false if it was already recorded. Streak counts days played. */
+/**
+ * Record a finished game once. Returns false if it was already recorded (a refresh on the
+ * reveal screen), so callers skip the other one-time effects too. The streak counts days on
+ * which you played today's daily table; practice tables and Watch games don't touch it.
+ */
 export function recordGame(summary: GameSummary): boolean {
   const history = getHistory();
   if (history.some((h) => h.id === summary.id)) return false;
   write("history", [summary, ...history].slice(0, 100));
   const today = localDate();
   const streak = getStreak();
-  if (streak.lastPlayed !== today) write("streak", { count: streak.count + 1, lastPlayed: today });
+  if (summary.mode === "play" && summary.seed === todaySeed() && streak.lastPlayed !== today) {
+    write("streak", { count: streak.count + 1, lastPlayed: today });
+  }
   return true;
 }
 
+/** Whether you've already played this daily table. Watching it doesn't count. */
 export function playedToday(seed: string): boolean {
-  return getHistory().some((h) => h.seed === seed);
+  return getHistory().some((h) => h.seed === seed && h.mode === "play");
 }
 
 /** "Caught N of M": games as a civilian where the imposter was caught. */
 export function caughtRecord(): { caught: number; total: number } {
-  const civ = getHistory().filter((h) => h.yourRole === "civilian");
+  const civ = getHistory().filter((h) => h.mode === "play" && h.yourRole === "civilian");
   return { caught: civ.filter((h) => h.won).length, total: civ.length };
 }
 
