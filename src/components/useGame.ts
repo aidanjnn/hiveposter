@@ -62,6 +62,8 @@ export function useGame() {
   const recorded = useRef<string | null>(null);
   /** The stream in flight; Leave aborts it so a late event can't bring the old table back. */
   const inflight = useRef<AbortController | null>(null);
+  /** Bumped on every reset, so a response for a table we've since left or redealt is dropped. */
+  const generation = useRef(0);
 
   /**
    * Once per finished game: history, streak, grudges, detective rating, persona memory.
@@ -102,6 +104,7 @@ export function useGame() {
   const reset = useCallback((message?: string) => {
     inflight.current?.abort();
     inflight.current = null;
+    generation.current += 1;
     setBusy(false);
     setView(null);
     setWaiting(null);
@@ -194,6 +197,7 @@ export function useGame() {
   const start = useCallback(
     async (mode: Mode, opts: { practice?: boolean } = {}) => {
       reset();
+      const gen = generation.current;
       setBusy(true);
       const personas: PersonaId[] = mode === "play" ? PLAY_LINEUP : WATCH_LINEUP;
       const daily = todaySeed();
@@ -214,15 +218,16 @@ export function useGame() {
           }),
         });
         const j = (await res.json()) as { view?: PublicView; error?: string };
+        if (gen !== generation.current) return;
         if (!res.ok || !j.view) throw new Error(j.error);
         local.rememberGame(j.view.id);
         setView(j.view);
         // Play mode waits on the role card; Watch mode starts right away.
         setStarted(mode === "watch");
       } catch {
-        setError("Couldn't deal. Try again.");
+        if (gen === generation.current) setError("Couldn't deal. Try again.");
       } finally {
-        setBusy(false);
+        if (gen === generation.current) setBusy(false);
       }
     },
     [reset],
@@ -236,6 +241,7 @@ export function useGame() {
   const send = useCallback(
     async (move: HumanMove): Promise<string | null> => {
       if (!view) return null;
+      const gen = generation.current;
       if (move.type !== "call" && move.type !== "takeSeat") return request(`/api/game/${view.id}/human`, move);
       // Asides don't start turns and may arrive while a turn is still streaming.
       const body = move.type === "call" ? { ...move, seenPhase: view.phase } : move;
@@ -251,6 +257,7 @@ export function useGame() {
           body: JSON.stringify(body),
         });
         const j = (await res.json().catch(() => ({}))) as { view?: PublicView; error?: string };
+        if (gen !== generation.current) return null;
         if (!res.ok) {
           if (move.type === "call") {
             asides.current = { ...asides.current, watchCall: undefined };
@@ -261,7 +268,7 @@ export function useGame() {
         if (move.type === "takeSeat" && j.view) {
           const next = j.view;
           asides.current = { ...asides.current, seats: next.seats, yourRole: next.yourRole, word: next.word };
-          setView((v) => (v ? { ...v, seats: next.seats, yourRole: next.yourRole, word: next.word } : next));
+          setView((v) => (v && v.id === next.id ? { ...v, seats: next.seats, yourRole: next.yourRole, word: next.word } : v));
         }
         return null;
       } catch {
@@ -277,15 +284,20 @@ export function useGame() {
     resumed.current = true;
     const id = local.currentGame();
     if (!id) return;
+    const gen = generation.current;
     fetch(`/api/game/${id}`)
       .then(async (res) => {
+        if (gen !== generation.current) return;
         if (!res.ok) return reset("Table reset. Deal again.");
         const j = (await res.json()) as { view: PublicView };
+        if (gen !== generation.current) return;
         finish(j.view);
         setView(j.view);
         setStarted(true);
       })
-      .catch(() => reset());
+      .catch(() => {
+        if (gen === generation.current) reset();
+      });
   }, [finish, reset]);
 
   // Nobody human is needed: ask for the next phase.

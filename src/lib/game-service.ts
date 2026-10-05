@@ -21,8 +21,8 @@ export const CreateBody = z.object({
   /** Always from the client: the daily seed is the player's local date (plan §04), not the server's. */
   seed: z.string().min(1).max(64),
   personas: z.array(personaId).optional(),
-  memory: z.record(z.string(), z.array(z.string().max(200)).max(10)).optional(),
-  grudges: z.record(z.string(), z.number().int().min(0).max(99)).optional(),
+  memory: z.partialRecord(personaId, z.array(z.string().max(200)).max(10)).optional(),
+  grudges: z.partialRecord(personaId, z.number().int().min(0).max(99)).optional(),
 });
 
 export const HumanBody = z.discriminatedUnion("type", [
@@ -64,12 +64,14 @@ export function create(body: z.infer<typeof CreateBody>): GameState {
  * game lock so an in-flight turn can't overwrite them, and answered with plain JSON.
  */
 export async function applyAside(id: string, move: Extract<HumanMove, { type: "call" | "takeSeat" }>): Promise<Response> {
-  if (!getGame(id)) return badRequest(TABLE_RESET, 404);
+  const arrived = getGame(id);
+  if (!arrived) return badRequest(TABLE_RESET, 404);
   return withGame(id, async () => {
     const state = getGame(id);
     if (!state) return badRequest(TABLE_RESET, 404);
     try {
-      const next = applyHumanMove(state, move);
+      // A call waits here behind any streaming turn; judge it by the phase it arrived in.
+      const next = applyHumanMove(state, move, arrived.phase);
       putGame(next);
       return Response.json({ view: viewOf(next) });
     } catch (err) {

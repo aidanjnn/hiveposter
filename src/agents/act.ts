@@ -257,10 +257,8 @@ async function tryCall<S extends z.ZodType>(
     return { output: r.output, costUsd: r.costUsd };
   } catch (err) {
     // Keep the status and message so the sim can tell a 403 from a timeout.
-    const e = err as { statusCode?: number; message?: string; responseBody?: string };
-    // Name the quota on a 429 (per-minute vs per-day) so the sim can tell them apart.
-    const quota = /"quotaId":\s*"([^"]+)"/.exec(e?.responseBody ?? "")?.[1];
-    ctx.error = `${e?.statusCode ?? ""} ${quota ?? String(e?.message ?? "model call failed")}`.trim().slice(0, 120);
+    const e = err as { statusCode?: number; message?: string };
+    ctx.error = `${e?.statusCode ?? ""} ${String(e?.message ?? "model call failed")}`.trim().slice(0, 120);
     return { error: ctx.error };
   }
 }
