@@ -25,8 +25,8 @@ const MAX_BODY_BYTES = 64_000;
 const personaId = z.enum(["juno", "biscuit", "marlowe", "rook"]);
 
 type Memory = { notes: string[]; lobbyLine: string };
-/** Per finished game: summaries that succeeded, attempts made, and whether one is running. */
-type GameMemory = { memory: Partial<Record<PersonaId, Memory>>; attempts: number; busy: boolean };
+/** Per finished game: summaries that succeeded, attempts made, and the attempt in flight. */
+type GameMemory = { memory: Partial<Record<PersonaId, Memory>>; attempts: number; pending?: Promise<void> };
 const MAX_ATTEMPTS = 3;
 
 declare global {
@@ -52,23 +52,23 @@ export async function POST(req: Request) {
   const state = getGame(id);
   if (!state || state.phase !== "reveal" || !humanSeat(state)) return badRequest("Memory needs a finished game.");
   for (const done of memorized.keys()) if (!getGame(done)) memorized.delete(done);
-  const record: GameMemory = memorized.get(id) ?? { memory: {}, attempts: 0, busy: false };
+  const record: GameMemory = memorized.get(id) ?? { memory: {}, attempts: 0 };
   memorized.set(id, record);
   const view = viewOf(state);
   const personas = [...new Set(view.seats.map((s) => s.persona).filter((p): p is PersonaId => Boolean(p)))];
+  // An overlapping request waits for the attempt in flight rather than starting another.
+  while (record.pending) await record.pending;
   // A retry gets the cached summaries back and only re-asks for the ones that failed.
   const missing = personas.filter((p) => !record.memory[p]);
-  if (missing.length && !record.busy && record.attempts < MAX_ATTEMPTS) {
-    record.busy = true;
+  if (missing.length && record.attempts < MAX_ATTEMPTS) {
     record.attempts += 1;
-    try {
-      const results = await Promise.allSettled(
-        missing.map(async (p) => [p, await summarizeForPersona(p, view, parsed.data.notes[p] ?? [])] as const),
-      );
+    record.pending = Promise.allSettled(
+      missing.map(async (p) => [p, await summarizeForPersona(p, view, parsed.data.notes[p] ?? [])] as const),
+    ).then((results) => {
       for (const r of results) if (r.status === "fulfilled") record.memory[r.value[0]] = r.value[1];
-    } finally {
-      record.busy = false;
-    }
+      record.pending = undefined;
+    });
+    await record.pending;
   }
   return Response.json({ memory: record.memory });
 }
