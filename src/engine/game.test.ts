@@ -256,9 +256,10 @@ describe("watch mode", () => {
     expect(callPoints(s)).toBe(3);
   });
 
-  it("scores a call at the phase the viewer saw, never later than the server", () => {
+  it("scores a call at the phase the viewer saw, at most one behind the server", () => {
     const g = toVote(withImposter(createGame(WATCH), "rook"));
-    expect(lockCall(g, "rook", "clue1").watchCall?.lockedAtPhase).toBe("clue1");
+    expect(lockCall(g, "rook", "discuss").watchCall?.lockedAtPhase).toBe("discuss");
+    expect(() => lockCall(g, "rook", "clue1")).toThrow("Calls closed at the vote.");
     expect(() => lockCall(g, "rook")).toThrow("Calls closed at the vote.");
     const early = withImposter(createGame(WATCH), "rook");
     expect(lockCall(early, "rook", "discuss").watchCall?.lockedAtPhase).toBe("clue1");
