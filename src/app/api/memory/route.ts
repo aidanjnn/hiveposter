@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { PersonaId, PublicView } from "@/engine/types";
 import { summarizeForPersona } from "@/agents/memory";
 import { badRequest } from "@/lib/game-service";
+import { MAX_NOTES_PER_PERSONA } from "@/lib/notes";
 
 /**
  * POST /api/memory
@@ -11,16 +12,29 @@ import { badRequest } from "@/lib/game-service";
  */
 export const maxDuration = 30;
 
+// The body comes from the browser, so bound what it can spend: a finished game is a few KB,
+// and each persona costs one model call.
+const MAX_BODY_BYTES = 64_000;
+const personaId = z.enum(["juno", "biscuit", "marlowe", "rook"]);
+
 const Body = z.object({
-  view: z.object({ phase: z.literal("reveal"), seats: z.array(z.object({ persona: z.string().optional() })) }).passthrough(),
-  notes: z.record(z.string(), z.array(z.string())).default({}),
+  view: z
+    .object({ phase: z.literal("reveal"), seats: z.array(z.object({ persona: personaId.optional() })).max(4) })
+    .passthrough(),
+  notes: z.partialRecord(personaId, z.array(z.string().max(200)).max(MAX_NOTES_PER_PERSONA)).default({}),
 });
 
 export async function POST(req: Request) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const raw = await req.text();
+  if (raw.length > MAX_BODY_BYTES) return badRequest("Memory needs a finished game.");
+  let body: unknown = null;
+  try {
+    body = JSON.parse(raw);
+  } catch {}
+  const parsed = Body.safeParse(body);
   if (!parsed.success) return badRequest("Memory needs a finished game.");
   const view = parsed.data.view as unknown as PublicView;
-  const personas = view.seats.map((s) => s.persona).filter((p): p is PersonaId => Boolean(p));
+  const personas = [...new Set(view.seats.map((s) => s.persona).filter((p): p is PersonaId => Boolean(p)))];
   const results = await Promise.allSettled(
     personas.map(async (p) => [p, await summarizeForPersona(p, view, parsed.data.notes[p] ?? [])] as const),
   );
