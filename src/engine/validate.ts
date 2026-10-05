@@ -63,6 +63,11 @@ export function guessMatches(wordSet: WordSet, guess: string): boolean {
 
 /** Last line of defense: remove the secret word (and its plural) from public text. */
 export function scrubSecret(state: GameState, text: string): string {
-  const word = state.wordSet.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return scrubWord(state.wordSet.word, text);
+}
+
+/** `scrubSecret` for callers that hold only the word (post-game memory). */
+export function scrubWord(secret: string, text: string): string {
+  const word = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return text.replace(new RegExp(`\\b${word}(e?s)?\\b`, "gi"), "•••");
 }

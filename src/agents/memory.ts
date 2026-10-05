@@ -1,5 +1,6 @@
 import type { PersonaId, PublicView } from "@/engine/types";
 import { gatewayCall, MODELS, type ModelCall } from "./act";
+import { scrubWord } from "@/engine/validate";
 import { PERSONAS } from "./personas";
 import { memoryPrompt } from "./prompts";
 import { MemoryUpdate } from "./schemas";
@@ -43,12 +44,15 @@ export async function summarizeForPersona(
   const { output } = await call({
     model: MODELS.memory,
     system: `You are ${p.name}. ${p.voice}`,
-    prompt: memoryPrompt(p, gameSummary(persona, view), existingNotes),
+    prompt: memoryPrompt(gameSummary(persona, view), existingNotes),
     schema: MemoryUpdate,
   });
+  // Notes ride into every later system prompt, the imposter's included; a repeat word set
+  // must not arrive pre-solved.
+  const clean = (t: string) => (view.word ? scrubWord(view.word, t) : t).trim();
   return {
-    notes: (output.notes ?? []).map((n) => n.trim().slice(0, NOTE_CHARS)).filter(Boolean).slice(0, 3),
-    lobbyLine: (output.lobbyLine ?? "").trim().slice(0, LOBBY_CHARS),
+    notes: (output.notes ?? []).map((n) => clean(n).slice(0, NOTE_CHARS)).filter(Boolean).slice(0, 3),
+    lobbyLine: clean(output.lobbyLine ?? "").slice(0, LOBBY_CHARS),
   };
 }
 
