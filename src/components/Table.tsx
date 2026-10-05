@@ -30,7 +30,7 @@ export function Table({ game, view, side }: { game: Game; view: PublicView; side
         </Heading>
       ) : (
         <Heading>
-          <span className="text-accent">Imposter.</span> <span className="text-ink-2">You don&apos;t know the word.</span>
+          Imposter. <span className="text-ink-2">You don&apos;t know the word.</span>
         </Heading>
       )}
 
@@ -40,7 +40,7 @@ export function Table({ game, view, side }: { game: Game; view: PublicView; side
           const pending = seat === next;
           return (
             <li key={seat} className="grid grid-cols-[84px_1fr] items-center gap-2">
-              <span className={`flex items-center gap-1.5 text-[12px] ${seat === self ? "text-ink" : "text-ink-2"}`}>
+              <span className={`flex items-center gap-1.5 text-label ${seat === self ? "text-ink" : "text-ink-2"}`}>
                 <Dot seat={seat} />
                 {nameOf(seat)}
               </span>
@@ -55,7 +55,7 @@ export function Table({ game, view, side }: { game: Game; view: PublicView; side
         })}
       </ul>
 
-      <p className="text-[13px] text-ink-2">
+      <p className="text-ink-2">
         {view.yourRole === "imposter"
           ? "Your clue should sound like you know the word. Too vague looks guilty."
           : self

@@ -18,7 +18,7 @@ export function Button({
     <button
       type="button"
       {...props}
-      className={`${box} text-[14px] leading-[18px] tracking-[-0.15px] disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
+      className={`${box} text-body disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
     />
   );
 }

@@ -30,7 +30,7 @@ export function Game() {
     <>
       {screen}
       {game.error ? (
-        <div role="alert" className="mx-auto mb-6 flex w-full max-w-[440px] items-center justify-between gap-3 px-5 text-[13px] text-ink-2">
+        <div role="alert" className="mx-auto mb-6 flex w-full max-w-[440px] items-center justify-between gap-3 px-5 text-ink-2">
           <span>{game.error}</span>
           <Button variant="ghost" onClick={game.retry}>
             Try again

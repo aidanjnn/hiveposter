@@ -64,7 +64,7 @@ export function WordInput({
           {action}
         </Button>
       </div>
-      <span className="min-h-[18px] text-[13px] text-ink-3" aria-live="polite">
+      <span className="min-h-5 text-ink-3" aria-live="polite">
         {error}
       </span>
     </form>
