@@ -123,6 +123,9 @@ export interface PublicView {
   id: string;
   mode: Mode;
   phase: Phase;
+  seed: string;
+  /** Puzzle number for daily seeds, 0 for practice tables. */
+  setId: number;
   category: string;
   /** Present only if you are a civilian, or in watch mode. */
   word?: string;
@@ -164,7 +167,7 @@ export type HumanMove =
   | { type: "sure" }
   | { type: "vote"; target: SeatId }
   | { type: "guess"; word: string }
-  | { type: "call"; target: SeatId }
+  | { type: "call"; target: SeatId; seenPhase?: Phase }
   | { type: "takeSeat"; seat: SeatId };
 
 /** Events streamed from the phase route as SSE. */
@@ -175,4 +178,6 @@ export type GameEvent =
   | { type: "suspicion"; table: Partial<Record<SeatId, number>>; reason: string }
   | { type: "waiting"; seat: SeatId; for: "clue" | "message" | "vote" | "guess" }
   | { type: "phase"; phase: Phase; view: PublicView }
+  /** Last event of every stream: the authoritative view after the request. */
+  | { type: "view"; view: PublicView }
   | { type: "error"; message: string };

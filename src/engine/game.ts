@@ -235,14 +235,26 @@ export function takeSeat(state: GameState, seat: SeatId): GameState {
 }
 
 const CALL_POINTS: Partial<Record<Phase, number>> = { clue1: 3, clue2: 2, discuss: 1 };
+const PHASE_ORDER: Phase[] = ["lobby", "deal", "clue1", "clue2", "discuss", "vote", "lastGuess", "reveal"];
 
-/** Watch mode: the audience locks in who they think the imposter is. */
-export function lockCall(state: GameState, target: SeatId): GameState {
-  assert(state.mode === "watch", "calls are watch-mode only");
-  assert(!state.watchCall, "call already locked");
-  assert(CALL_POINTS[state.phase] !== undefined, "calls close at the vote");
+/**
+ * Watch mode: the audience locks in who they think the imposter is. The client animates
+ * turns behind the server, so it says which phase it was showing (`seenPhase`). A stream
+ * ends at the first phase change, so the client trails by at most one phase. A call can
+ * also wait behind a streaming turn, so it is judged against `arrivedPhase`, the server's
+ * phase when the request arrived: `seenPhase` counts if it is no earlier than the phase
+ * before that and no later than the server's now, else the call scores at the server's phase.
+ */
+export function lockCall(state: GameState, target: SeatId, seenPhase?: Phase, arrivedPhase: Phase = state.phase): GameState {
+  assert(state.mode === "watch", "Calls are for Watch mode.");
+  assert(!state.watchCall, "Your call is already locked.");
+  assert(state.phase !== "reveal", "Too late to call it.");
   seatOf(state, target);
-  return { ...state, watchCall: { target, lockedAtPhase: state.phase } };
+  const at = (p: Phase) => PHASE_ORDER.indexOf(p);
+  const fits = seenPhase && at(seenPhase) >= at(arrivedPhase) - 1 && at(seenPhase) <= at(state.phase);
+  const seen = fits ? seenPhase : state.phase;
+  assert(CALL_POINTS[seen] !== undefined, "Calls closed at the vote.");
+  return { ...state, watchCall: { target, lockedAtPhase: seen } };
 }
 
 /** Points for a correct watch call: 3 before any clue round ends, 2 in round two, 1 in discussion. */

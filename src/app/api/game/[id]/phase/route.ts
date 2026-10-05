@@ -1,12 +1,13 @@
+import { advance } from "@/lib/game-service";
+
 /**
  * POST /api/game/[id]/phase
- * Body: { phase }
- * Runs agent turns for that phase until a human move is needed, streaming GameEvents as SSE.
- * The final event is { type: "phase", view }. Plan §08.
+ * Runs agent turns until a human move is needed, streaming GameEvents as SSE.
+ * The last event is { type: "view" }. Plan §08.
  */
-export const maxDuration = 60;
+export const maxDuration = 120;
 
-export async function POST(req: Request, ctx: RouteContext<"/api/game/[id]/phase">) {
+export async function POST(_req: Request, ctx: RouteContext<"/api/game/[id]/phase">) {
   const { id } = await ctx.params;
-  return Response.json({ error: `TODO(api): advance phase for ${id}` }, { status: 501 });
+  return advance(id);
 }

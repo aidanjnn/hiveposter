@@ -15,7 +15,7 @@ import {
 } from "@/engine/game";
 import { scrubSecret, validateClue } from "@/engine/validate";
 import { publicView } from "@/engine/view";
-import type { AgentTrace, GameEvent, GameState, HumanMove, SeatId } from "@/engine/types";
+import type { AgentTrace, GameEvent, GameState, HumanMove, Phase, SeatId } from "@/engine/types";
 import { actClue, actDiscuss, actLastGuess, actVote, type ActOptions } from "./act";
 import { PERSONAS } from "./personas";
 
@@ -29,6 +29,8 @@ export type Emit = (event: GameEvent) => void;
 
 export interface RunOptions extends ActOptions {
   emit?: Emit;
+  /** Return after the first phase change. Keeps each streamed request short; the client asks again. */
+  onePhase?: boolean;
 }
 
 export class MoveError extends Error {}
@@ -208,7 +210,7 @@ export async function runUntilHuman(state: GameState, opts: RunOptions = {}): Pr
         break;
     }
     if (s.phase !== before.phase) opts.emit?.({ type: "phase", phase: s.phase, view: publicView(s, viewer(s)) });
-    if (s.phase === "reveal" || s === before || s.phase === before.phase) break;
+    if (s.phase === "reveal" || s === before || s.phase === before.phase || opts.onePhase) break;
   }
   return s;
 }
@@ -217,7 +219,7 @@ export async function runUntilHuman(state: GameState, opts: RunOptions = {}): Pr
  * Apply a human move after checking it is theirs to make. Throws MoveError with a
  * user-facing reason; the route turns that into a 400.
  */
-export function applyHumanMove(state: GameState, move: HumanMove): GameState {
+export function applyHumanMove(state: GameState, move: HumanMove, arrivedPhase?: Phase): GameState {
   const human = humanSeat(state);
   const fail = (reason: string): never => {
     throw new MoveError(reason);
@@ -238,8 +240,8 @@ export function applyHumanMove(state: GameState, move: HumanMove): GameState {
       if (state.watchCall) fail("Your call is already locked.");
       if (!atTable(move.target)) fail("No such seat.");
       if (state.phase === "reveal") fail("Too late to call it.");
-      if (state.phase === "vote" || state.phase === "lastGuess") fail("Calls closed at the vote.");
-      return lockCall(state, move.target);
+      // lockCall scores the call at the phase the viewer saw and refuses once votes are in.
+      return lockCall(state, move.target, move.seenPhase, arrivedPhase);
   }
 
   if (!human) fail("Take a seat first.");
