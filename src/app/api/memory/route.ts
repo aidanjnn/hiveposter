@@ -8,11 +8,12 @@ import { getGame } from "@/lib/store";
 
 /**
  * POST /api/memory
- * Body: { view: { id } of a revealed game, notes: { [persona]: string[] } }
+ * Body: { view: { id } of a revealed game }. Submitted notes are accepted but not used.
  * Returns { memory: { [persona]: { notes, lobbyLine } } }. A persona whose call fails is
  * left out; the client keeps its old notes. Plan §07.
  *
- * The summary is built from the server's copy of the game, never the submitted view. Each
+ * The summary is built from the server's copy of the game and the notes it was dealt with,
+ * never the submitted view or notes, so one client can't shape another's memory. Each
  * persona is summarized once per game; a retry returns the cached summaries and re-asks only
  * for failed ones, at most three attempts, so a made-up or replayed body can't buy model calls.
  * A recycled instance has no copy; the client just keeps its old notes.
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
   if (missing.length && record.attempts < MAX_ATTEMPTS) {
     record.attempts += 1;
     record.pending = Promise.allSettled(
-      missing.map(async (p) => [p, await summarizeForPersona(p, view, parsed.data.notes[p] ?? [])] as const),
+      missing.map(async (p) => [p, await summarizeForPersona(p, view, state.memory[p] ?? [])] as const),
     ).then((results) => {
       for (const r of results) if (r.status === "fulfilled") record.memory[r.value[0]] = r.value[1];
       record.pending = undefined;

@@ -15,7 +15,7 @@ import {
 } from "@/engine/game";
 import { scrubSecret, validateClue } from "@/engine/validate";
 import { publicView } from "@/engine/view";
-import type { AgentTrace, GameEvent, GameState, HumanMove, SeatId } from "@/engine/types";
+import type { AgentTrace, GameEvent, GameState, HumanMove, Phase, SeatId } from "@/engine/types";
 import { actClue, actDiscuss, actLastGuess, actVote, type ActOptions } from "./act";
 import { PERSONAS } from "./personas";
 
@@ -219,7 +219,7 @@ export async function runUntilHuman(state: GameState, opts: RunOptions = {}): Pr
  * Apply a human move after checking it is theirs to make. Throws MoveError with a
  * user-facing reason; the route turns that into a 400.
  */
-export function applyHumanMove(state: GameState, move: HumanMove): GameState {
+export function applyHumanMove(state: GameState, move: HumanMove, arrivedPhase?: Phase): GameState {
   const human = humanSeat(state);
   const fail = (reason: string): never => {
     throw new MoveError(reason);
@@ -241,7 +241,7 @@ export function applyHumanMove(state: GameState, move: HumanMove): GameState {
       if (!atTable(move.target)) fail("No such seat.");
       if (state.phase === "reveal") fail("Too late to call it.");
       // lockCall scores the call at the phase the viewer saw and refuses once votes are in.
-      return lockCall(state, move.target, move.seenPhase);
+      return lockCall(state, move.target, move.seenPhase, arrivedPhase);
   }
 
   if (!human) fail("Take a seat first.");
