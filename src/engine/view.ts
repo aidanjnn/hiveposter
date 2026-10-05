@@ -48,6 +48,8 @@ export function publicView(state: GameState, viewer: SeatId | "audience"): Publi
     id: state.id,
     mode: state.mode,
     phase: state.phase,
+    seed: state.seed,
+    setId: state.wordSet.id,
     category: state.wordSet.category,
     seats: state.seats.map((s) => ({ id: s.id, kind: s.kind, persona: s.persona })),
     order: state.order,

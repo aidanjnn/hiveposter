@@ -119,6 +119,9 @@ export interface PublicView {
   id: string;
   mode: Mode;
   phase: Phase;
+  seed: string;
+  /** Puzzle number for daily seeds, 0 for practice tables. */
+  setId: number;
   category: string;
   /** Present only if you are a civilian, or in watch mode. */
   word?: string;
@@ -160,7 +163,7 @@ export type HumanMove =
   | { type: "sure" }
   | { type: "vote"; target: SeatId }
   | { type: "guess"; word: string }
-  | { type: "call"; target: SeatId }
+  | { type: "call"; target: SeatId; seenPhase?: Phase }
   | { type: "takeSeat"; seat: SeatId };
 
 /** Events streamed from the phase route as SSE. */

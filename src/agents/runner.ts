@@ -29,6 +29,8 @@ export type Emit = (event: GameEvent) => void;
 
 export interface RunOptions extends ActOptions {
   emit?: Emit;
+  /** Return after the first phase change. Keeps each streamed request short; the client asks again. */
+  onePhase?: boolean;
 }
 
 export class MoveError extends Error {}
@@ -201,7 +203,7 @@ export async function runUntilHuman(state: GameState, opts: RunOptions = {}): Pr
         break;
     }
     if (s.phase !== before.phase) opts.emit?.({ type: "phase", phase: s.phase, view: publicView(s, viewer(s)) });
-    if (s.phase === "reveal" || s === before || s.phase === before.phase) break;
+    if (s.phase === "reveal" || s === before || s.phase === before.phase || opts.onePhase) break;
   }
   return s;
 }
@@ -218,10 +220,12 @@ export function applyHumanMove(state: GameState, move: HumanMove): GameState {
 
   switch (move.type) {
     case "takeSeat":
+      if (humanSeat(state)) fail("You already have a seat.");
+      if (state.phase === "lastGuess" || state.phase === "reveal") fail("Too late to take a seat.");
       return takeSeat(state, move.seat);
     case "call":
       if (state.watchCall) fail("Your call is already locked.");
-      return lockCall(state, move.target);
+      return lockCall(state, move.target, move.seenPhase);
   }
 
   if (!human) fail("Take a seat first.");
