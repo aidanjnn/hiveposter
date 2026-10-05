@@ -123,13 +123,18 @@ function retryDelayMs(err: unknown): number | undefined {
 /**
  * Most a call may spend waiting for a slot or a 429 retry, on top of CALL_TIMEOUT_MS. Keeps a
  * memory summary inside its 30 s route limit and lets a turn fall back instead of stalling.
+ * The simulator has no route limit and lifts it, so rate limits slow a run instead of
+ * turning moves into fallbacks that would skew the comparison.
  */
-const MAX_RATE_WAIT_MS = 15_000;
+let maxRateWaitMs = 15_000;
+export function setRateWaitBudget(ms: number): void {
+  maxRateWaitMs = ms;
+}
 const rateLimited = () => new Error("No model request slot within the wait budget.");
 
 /** The real model call through the AI SDK (Google directly, or the gateway). */
 export const modelCall: ModelCall = async (req) => {
-  const deadline = Date.now() + MAX_RATE_WAIT_MS;
+  const deadline = Date.now() + maxRateWaitMs;
   if (!(await pace(req.model, Date.now, deadline))) throw rateLimited();
   try {
     return await callOnce(req);

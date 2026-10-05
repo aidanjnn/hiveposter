@@ -61,7 +61,7 @@ The split is meant to be justified by measurement, not assertion: `pnpm sim` pla
 
 _Targets from [plan §11](docs/plan.md#11-eval-harness-and-model-pick): imposter win rate 35–50%, clue rejections under 10%, vote accuracy Juno > Rook > Biscuit, average turn under 2.5 s._
 
-Each run prints one row, so the table takes three runs (add `--verbose` to print each game's transcript). Free-tier keys allow about 15 requests a minute per model, so the sim plays one game at a time.
+Each run prints one row, so the table takes three runs (add `--verbose` to print each game's transcript). Free-tier keys allow about 15 requests a minute per model, so the sim plays one game at a time and waits out rate limits instead of falling back, which makes a 10-game run take several minutes.
 
 ```sh
 pnpm sim -- --games 10 --civ gemini-3.5-flash-lite --imp gemini-3.5-flash

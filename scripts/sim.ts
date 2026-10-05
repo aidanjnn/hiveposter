@@ -17,7 +17,7 @@ config({ path: ".env.local", quiet: true });
 
 import { createGame, imposterOf } from "../src/engine/game";
 import type { GameState, SeatId } from "../src/engine/types";
-import { MODELS } from "../src/agents/act";
+import { MODELS, setRateWaitBudget } from "../src/agents/act";
 import { WATCH_LINEUP, PERSONAS } from "../src/agents/personas";
 import { runUntilHuman } from "../src/agents/runner";
 
@@ -33,6 +33,8 @@ const games = Number(flag("games", "5"));
 const concurrency = Number(flag("concurrency", "1"));
 const verbose = flag("verbose") === "true";
 const models = { civilian: flag("civ", MODELS.civilian)!, imposter: flag("imp", MODELS.imposter)! };
+// No route limit here: wait out rate limits rather than measure fallback play.
+setRateWaitBudget(Infinity);
 
 const short = (m: string) => m.replace(/^anthropic\/claude-/, "").replace(/^gemini-/, "gemini ");
 
