@@ -171,4 +171,6 @@ export type GameEvent =
   | { type: "suspicion"; table: Partial<Record<SeatId, number>>; reason: string }
   | { type: "waiting"; seat: SeatId; for: "clue" | "message" | "vote" | "guess" }
   | { type: "phase"; phase: Phase; view: PublicView }
+  /** Last event of every stream: the authoritative view after the request. */
+  | { type: "view"; view: PublicView }
   | { type: "error"; message: string };
