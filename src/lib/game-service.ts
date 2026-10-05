@@ -89,6 +89,8 @@ export async function advance(id: string, move?: HumanMove): Promise<Response> {
   if (!current) return badRequest(TABLE_RESET, 404);
 
   let afterMove = current;
+  // A second "I'm sure" (button and timer together) is harmless: nothing to apply, keep going.
+  if (move?.type === "sure" && current.phase !== "discuss") move = undefined;
   if (move) {
     try {
       afterMove = applyHumanMove(current, move);
@@ -103,7 +105,7 @@ export async function advance(id: string, move?: HumanMove): Promise<Response> {
     try {
       // Re-read inside the lock in case another request advanced the table first.
       let state = getGame(id) === current ? afterMove : getGame(id)!;
-      if (move && state !== afterMove) {
+      if (move && state !== afterMove && !(move.type === "sure" && state.phase !== "discuss")) {
         state = applyHumanMove(state, move);
       }
       putGame(state);

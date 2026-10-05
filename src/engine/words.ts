@@ -1,4 +1,7 @@
 import type { WordSet } from "./types";
+import { dayOffset, puzzleNumber } from "./calendar";
+
+export { todaySeed } from "./calendar";
 
 type SetDef = Omit<WordSet, "id">;
 
@@ -6,6 +9,9 @@ type SetDef = Omit<WordSet, "id">;
  * Daily word bank (plan §04). Decoys are same-category near misses so the imposter
  * has real options; they matter more than the word. Generic clues are the fallback
  * when an agent's clue is rejected twice, so they must be safe for the word.
+ *
+ * Server-only: the client imports calendar.ts, never this file. A test walks the
+ * client import graph to keep it that way.
  */
 export const WORD_SETS: readonly SetDef[] = [
   { category: "Breakfast", word: "waffle", decoys: ["pancake", "crepe", "bagel", "omelette"], generic: ["morning", "plate", "warm"] },
@@ -40,31 +46,15 @@ export const WORD_SETS: readonly SetDef[] = [
   { category: "Fabrics", word: "velvet", decoys: ["silk", "denim", "corduroy", "satin"], generic: ["soft", "sew", "fabric"] },
 ];
 
-/** Day 1 of the daily puzzle. Share cards count from here. */
-const LAUNCH_DAY = dayNumber("2026-10-05");
-const DATE_SEED = /^\d{4}-\d{2}-\d{2}$/;
-
-function dayNumber(isoDate: string): number {
-  return Math.floor(Date.parse(`${isoDate}T00:00:00Z`) / 86_400_000);
-}
-
-/** Local date as YYYY-MM-DD, used as the daily seed. */
-export function todaySeed(date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 /**
  * Deterministic word set for a seed. A date seed walks the bank one set per day from
  * launch day (set 0) and carries the puzzle number; any other seed ("Play again") hashes to a set with id 0.
  */
 export function wordSetForSeed(seed: string): WordSet {
-  if (DATE_SEED.test(seed)) {
-    const offset = dayNumber(seed) - LAUNCH_DAY;
+  const offset = dayOffset(seed);
+  if (offset !== null) {
     const index = ((offset % WORD_SETS.length) + WORD_SETS.length) % WORD_SETS.length;
-    return { id: Math.max(1, offset + 1), ...WORD_SETS[index] };
+    return { id: puzzleNumber(seed), ...WORD_SETS[index] };
   }
   const index = Math.floor(seededRandom(seed)() * WORD_SETS.length);
   return { id: 0, ...WORD_SETS[index] };

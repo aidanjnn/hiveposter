@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Mode, PersonaId } from "@/engine/types";
-import { todaySeed, wordSetForSeed } from "@/engine/words";
+import { puzzleNumber, todaySeed } from "@/engine/calendar";
 import { PERSONAS, PLAY_LINEUP, WATCH_LINEUP } from "@/agents/personas";
 import * as local from "@/lib/local";
 import { Button } from "./ui/Button";
@@ -34,7 +34,6 @@ function readStats(seed: string): Stats {
 export function Lobby({ onStart, busy, notice }: { onStart: (mode: Mode, practice?: boolean) => void; busy: boolean; notice: string | null }) {
   const [mode, setMode] = useState<Mode>("play");
   const seed = todaySeed();
-  const set = wordSetForSeed(seed);
   // The game renders client-only, so local storage can be read on first render.
   const [stats] = useState<Stats>(() => readStats(seed));
 
@@ -43,7 +42,7 @@ export function Lobby({ onStart, busy, notice }: { onStart: (mode: Mode, practic
   const practice = mode === "play" && Boolean(stats?.played);
 
   return (
-    <Shell left={date} right={`Set #${set.id}`}>
+    <Shell left={date} right={`Set #${puzzleNumber(seed)}`}>
       <Heading>{mode === "play" ? "Tonight's table" : "Watch the agents"}</Heading>
 
       <div role="tablist" aria-label="Mode" className="grid grid-cols-2 gap-1 rounded bg-surface-2 p-[3px] text-[13px]">
