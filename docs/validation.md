@@ -4,6 +4,22 @@ Evidence recorded as it happens, newest first. Tiers follow
 [.agents/references/validation.md](../.agents/references/validation.md): automated,
 simulated, live provider, human play. "Not tested" means exactly that.
 
+## 2026-10-04 — second staff review of #2–#5 (on `agent/ui` b27b4ef)
+
+Read-only review of all four open PRs. Each P1 was checked against the stack tip before
+fixing.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| P1: human chat text reached the imposter agent's prompt unscrubbed | `scrubSecret` on human messages | **Automated:** new test fails without the fix, passes with it |
+| P1: Watch dealt the daily seed, spoiling today's word and imposter index | Watch always deals a practice seed | Code reviewed; not exercised in a browser |
+| P1: Leave mid-turn let a late stream event restore the old table | Leave aborts the in-flight stream and clears busy | Code reviewed; not exercised in a browser |
+| P2: post-game notes could carry the word into a later system prompt | Notes and lobby line scrubbed with that game's word | **Automated:** new test fails without the fix |
+| P2: `/api/memory` accepted unbounded personas, notes and body | Persona enum, dedupe, ≤4 seats, ≤10 notes of ≤200 chars, 64 KB body | Code reviewed |
+
+`pnpm test` 60 passed, typecheck clean, lint clean. `next build` not run locally (Turbopack
+could not bind a port in this environment); CI runs it.
+
 ## 2026-10-04 — staff review fixes (subagent review of #2–#4)
 
 A read-only staff review scored the stack 69/100, Request changes, with two P1 leaks.
