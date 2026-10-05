@@ -75,7 +75,8 @@ async function main() {
   const clueTraces = traces.filter((t) => t.phase === "clue1" || t.phase === "clue2");
   const impWins = results.filter((g) => g.result?.winner === "imposter").length;
   const caughtGuessed = results.filter((g) => g.result?.ejected === g.result?.imposter && g.lastGuess?.correct).length;
-  const retried = clueTraces.filter((t) => t.retried).length;
+  // A rejection is any clue turn where the model's pick didn't play: a retry or a demotion.
+  const rejected = clueTraces.filter((t) => t.retried || t.demoted).length;
   const fallbacks = traces.filter((t) => t.fallback).length;
   const latency = traces.filter((t) => !t.fallback).map((t) => t.latencyMs);
   const avgLatency = latency.length ? latency.reduce((a, b) => a + b, 0) / latency.length : NaN;
@@ -86,7 +87,7 @@ async function main() {
   console.log(`\n| Config (civilian / imposter) | Imposter win rate | Caught but guessed | Clue rejections | Fallback moves | Avg turn latency | Cost / game |`);
   console.log(`| --- | --- | --- | --- | --- | --- | --- |`);
   console.log(
-    `| ${short(models.civilian)} / ${short(models.imposter)} | ${pct(impWins, results.length)} (${impWins}/${results.length}) | ${caughtGuessed} | ${pct(retried, clueTraces.length)} | ${pct(fallbacks, traces.length)} | ${Number.isFinite(avgLatency) ? `${(avgLatency / 1000).toFixed(1)}s` : "n/a"} | ${Number.isFinite(costPerGame) ? `$${costPerGame.toFixed(4)}` : "n/a"} |`,
+    `| ${short(models.civilian)} / ${short(models.imposter)} | ${pct(impWins, results.length)} (${impWins}/${results.length}) | ${caughtGuessed} | ${pct(rejected, clueTraces.length)} | ${pct(fallbacks, traces.length)} | ${Number.isFinite(avgLatency) ? `${(avgLatency / 1000).toFixed(1)}s` : "n/a"} | ${Number.isFinite(costPerGame) ? `$${costPerGame.toFixed(4)}` : "n/a"} |`,
   );
 
   console.log(`\nVote accuracy as civilian (voted for the real imposter):`);
@@ -102,6 +103,12 @@ async function main() {
       if (v.target === imp) right++;
     }
     console.log(`  ${PERSONAS[persona].name.padEnd(8)} ${pct(right, total)} (${right}/${total})`);
+  }
+  const reasons = new Map<string, number>();
+  for (const t of traces) if (t.error) reasons.set(t.error, (reasons.get(t.error) ?? 0) + 1);
+  if (reasons.size) {
+    console.log(`\nFallback causes:`);
+    for (const [r, n] of [...reasons].sort((a, b) => b[1] - a[1]).slice(0, 5)) console.log(`  ${n}× ${r}`);
   }
   const hunches = traces.filter((t) => t.hunch).length;
   console.log(`\nHunch votes: ${hunches} · wall time ${((Date.now() - started) / 1000).toFixed(0)}s`);

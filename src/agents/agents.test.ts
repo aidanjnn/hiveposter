@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "@/engine/game";
 import type { GameEvent, GameState, SeatId } from "@/engine/types";
-import { actClue, actVote, blendSuspicion, candidateIndex, type ModelCall } from "./act";
+import { actClue, actDiscuss, actVote, blendSuspicion, candidateIndex, type ModelCall } from "./act";
 import { gameSummary, mergeNotes, summarizeForPersona } from "./memory";
 import { PERSONAS } from "./personas";
 import { seatView } from "@/engine/view";
@@ -83,13 +83,43 @@ describe("act", () => {
     expect(out.rook).toBe(0.33);
   });
 
-  it("falls back to a generic clue when the model fails, flagged in the trace", async () => {
+  it("falls back to a generic clue when the model fails, flagged in the trace with the reason", async () => {
     const g = createGame({ ...WATCH, personas: [...WATCH.personas] });
     const seat = g.order[0];
     const r = await actClue(g, seat, { call: failing });
     expect(r.move.fallback).toBe(true);
     expect(r.trace.fallback).toBe(true);
+    expect(r.trace.error).toContain("credit card");
     expect(g.wordSet.generic).toContain(r.move.word);
+  });
+
+  it("flags a demoted candidate when the knob's pick is rejected", async () => {
+    const g = withImposter(createGame({ ...WATCH, personas: [...WATCH.personas] }), "rook");
+    let calls = 0;
+    const call: ModelCall = async () => {
+      calls++;
+      return { output: { candidates: ["syrup", "grid", "waffles"], privateNote: "", suspicion: [] } as never };
+    };
+    // Juno plays the specific candidate; "waffles" is too close, so "syrup" plays without a retry.
+    const r = await actClue({ ...g, order: ["juno", "biscuit", "marlowe", "rook"] }, "juno", { call });
+    expect(calls).toBe(1);
+    expect(r.move.word).toBe("syrup");
+    expect(r.trace.demoted).toBe(true);
+    expect(r.trace.retried).toBeUndefined();
+  });
+
+  it("scrubs the secret word from a civilian's public text", async () => {
+    const g = withImposter(createGame({ ...WATCH, personas: [...WATCH.personas] }), "rook");
+    const leaky: ModelCall = async ({ schema }) => {
+      const s = schema as unknown;
+      if (s === DiscussMove) return { output: { text: "It's waffle, obviously.", privateNote: "", suspicion: [] } as never };
+      if (s === VoteMove) return { output: { target: "rook", reason: "never said waffles", confidence: 1, privateNote: "", suspicion: [] } as never };
+      throw new Error("unexpected call");
+    };
+    const talk = await actDiscuss({ ...g, phase: "discuss" }, "juno", undefined, { call: leaky });
+    expect(talk.move.text).toBe("It's •••, obviously.");
+    const vote = await actVote({ ...g, phase: "vote" }, "juno", { call: leaky });
+    expect(vote.move.reason).toBe("never said •••");
   });
 
   it("retries once when every candidate is invalid, then accepts", async () => {
@@ -195,6 +225,19 @@ describe("runner", () => {
     const s = applyHumanMove({ ...base, phase: "discuss" }, { type: "message", text: "obviously Waffles, @juno?" });
     expect(s.messages.at(-1)?.text).not.toMatch(/waffle/i);
     expect(JSON.stringify(seatView(s, "juno"))).not.toMatch(/waffle/i);
+    // A human imposter's guess is not censored: that would confirm it.
+    const asImposter = withImposter({ ...base, phase: "discuss" }, "you");
+    expect(applyHumanMove(asImposter, { type: "message", text: "is it waffle?" }).messages.at(-1)?.text).toBe("is it waffle?");
+  });
+
+  it("refuses asides and off-table targets with player copy", () => {
+    const w = createGame({ ...WATCH, personas: [...WATCH.personas] });
+    expect(() => applyHumanMove({ ...w, phase: "vote" }, { type: "call", target: "juno" })).toThrow("Calls closed at the vote.");
+    expect(() => applyHumanMove(w, { type: "call", target: "you" })).toThrow("No such seat.");
+    expect(() => applyHumanMove({ ...w, phase: "lastGuess" }, { type: "takeSeat", seat: "juno" })).toThrow("Too late to take a seat.");
+    const p = createGame({ ...PLAY, personas: [...PLAY.personas] });
+    expect(() => applyHumanMove({ ...p, phase: "vote" }, { type: "vote", target: "rook" })).toThrow("No such seat.");
+    expect(() => applyHumanMove(p, { type: "takeSeat", seat: "juno" })).toThrow(MoveError);
   });
 
   it("refuses human moves with a reason", () => {

@@ -225,13 +225,22 @@ export function applyHumanMove(state: GameState, move: HumanMove): GameState {
     throw new MoveError(reason);
   };
 
+  const atTable = (seat: SeatId) => state.seats.some((s) => s.id === seat);
+
+  // Every refusal is player copy: the engine's own messages are for developers.
   switch (move.type) {
     case "takeSeat":
-      if (humanSeat(state)) fail("You already have a seat.");
+      if (state.mode !== "watch") fail("Seats are for Watch mode.");
+      if (human) fail("You already have a seat.");
       if (state.phase === "lastGuess" || state.phase === "reveal") fail("Too late to take a seat.");
+      if (!atTable(move.seat)) fail("No such seat.");
       return takeSeat(state, move.seat);
     case "call":
+      if (state.mode !== "watch") fail("Calls are for Watch mode.");
       if (state.watchCall) fail("Your call is already locked.");
+      if (!atTable(move.target)) fail("No such seat.");
+      if (state.phase === "reveal") fail("Too late to call it.");
+      // lockCall scores the call at the phase the viewer saw and refuses once votes are in.
       return lockCall(state, move.target, move.seenPhase);
   }
 
@@ -248,8 +257,10 @@ export function applyHumanMove(state: GameState, move: HumanMove): GameState {
       if (state.phase !== "discuss") fail("Discussion is over.");
       if (messagesLeft(state, me) <= 0) fail("You're out of messages. Tap I'm sure.");
       if (!move.text.trim()) fail("Say something.");
-      // Human text reaches every agent prompt, the imposter's included (ADR 0002).
-      return applyMessage(state, { seat: me, text: scrubSecret(state, move.text), ...(move.replyTo ? { replyTo: move.replyTo } : {}) });
+      // A civilian's text reaches every agent prompt, the imposter's included (ADR 0002). A
+      // human imposter's is left alone: censoring their guess would confirm it.
+      const text = seatOf(state, me).role === "civilian" ? scrubSecret(state, move.text) : move.text;
+      return applyMessage(state, { seat: me, text, ...(move.replyTo ? { replyTo: move.replyTo } : {}) });
     }
     case "sure":
       if (state.phase !== "discuss") fail("Discussion is over.");
@@ -257,6 +268,7 @@ export function applyHumanMove(state: GameState, move: HumanMove): GameState {
     case "vote":
       if (state.phase !== "vote") fail("Voting hasn't started.");
       if (move.target === me) fail("You can't vote for yourself.");
+      if (!atTable(move.target)) fail("No such seat.");
       if (state.votes.some((v) => v.seat === me)) fail("You already voted.");
       return applyVote(state, { seat: me, target: move.target, reason: "", confidence: 1 });
     case "guess":
