@@ -159,3 +159,17 @@ export function currentGame(): string | null {
     return null;
   }
 }
+
+/** Session-scoped: the discussion deadline for a game, so a refresh doesn't restart the clock. */
+export function discussionDeadline(gameId: string, durationMs: number): number {
+  const key = `${PREFIX}deadline.${gameId}`;
+  try {
+    const saved = Number(window.sessionStorage.getItem(key));
+    if (saved > 0) return saved;
+    const deadline = Date.now() + durationMs;
+    window.sessionStorage.setItem(key, String(deadline));
+    return deadline;
+  } catch {
+    return Date.now() + durationMs;
+  }
+}

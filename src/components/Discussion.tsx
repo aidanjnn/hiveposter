@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { PublicView, SeatId } from "@/engine/types";
 import type { Game } from "./useGame";
 import { me, nameOf, setLabel } from "@/lib/outcome";
+import { discussionDeadline } from "@/lib/local";
 import { Button } from "./ui/Button";
 import { Dot } from "./ui/Dot";
 import { Input } from "./ui/Input";
@@ -24,12 +25,16 @@ export function Discussion({ game, view, side }: { game: Game; view: PublicView;
   const myTurn = Boolean(self) && game.waiting?.for === "message";
   const used = view.messages.filter((m) => m.seat === self).length;
 
-  // The clock starts once the openers are in and it's the human's move.
+  // The clock starts once the openers are in and it's the human's move. The deadline is
+  // saved per game, so a refresh resumes the countdown instead of restarting it.
   useEffect(() => {
     if (!myTurn) return;
-    const t = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+    const deadline = discussionDeadline(view.id, DISCUSSION_S * 1000);
+    const tick = () => setLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [myTurn]);
+  }, [myTurn, view.id]);
 
   useEffect(() => {
     if (left > 0 || ended.current || !self) return;
@@ -95,7 +100,6 @@ export function Discussion({ game, view, side }: { game: Game; view: PublicView;
               maxLength={140}
               placeholder={used >= HUMAN_CAP ? "Out of messages. Tap I'm sure." : "Say something"}
               disabled={!myTurn || game.busy || used >= HUMAN_CAP}
-              invalid={Boolean(error)}
               className="flex-1"
             />
             <Button type="submit" disabled={!myTurn || game.busy || used >= HUMAN_CAP}>
