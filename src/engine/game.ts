@@ -235,14 +235,21 @@ export function takeSeat(state: GameState, seat: SeatId): GameState {
 }
 
 const CALL_POINTS: Partial<Record<Phase, number>> = { clue1: 3, clue2: 2, discuss: 1 };
+const PHASE_ORDER: Phase[] = ["lobby", "deal", "clue1", "clue2", "discuss", "vote", "lastGuess", "reveal"];
 
-/** Watch mode: the audience locks in who they think the imposter is. */
-export function lockCall(state: GameState, target: SeatId): GameState {
-  assert(state.mode === "watch", "calls are watch-mode only");
-  assert(!state.watchCall, "call already locked");
-  assert(CALL_POINTS[state.phase] !== undefined, "calls close at the vote");
+/**
+ * Watch mode: the audience locks in who they think the imposter is. The client animates
+ * turns behind the server, so it says which phase it was showing (`seenPhase`); the call
+ * is scored at that phase as long as it isn't later than the server's.
+ */
+export function lockCall(state: GameState, target: SeatId, seenPhase?: Phase): GameState {
+  assert(state.mode === "watch", "Calls are for Watch mode.");
+  assert(!state.watchCall, "Your call is already locked.");
+  assert(state.phase !== "reveal", "Too late to call it.");
   seatOf(state, target);
-  return { ...state, watchCall: { target, lockedAtPhase: state.phase } };
+  const seen = seenPhase && PHASE_ORDER.indexOf(seenPhase) <= PHASE_ORDER.indexOf(state.phase) ? seenPhase : state.phase;
+  assert(CALL_POINTS[seen] !== undefined, "Calls closed at the vote.");
+  return { ...state, watchCall: { target, lockedAtPhase: seen } };
 }
 
 /** Points for a correct watch call: 3 before any clue round ends, 2 in round two, 1 in discussion. */
