@@ -24,6 +24,14 @@ Working notes for the implementation. Verified against the installed packages, n
 - Gateway accounts without a card on file return 403 `customer_verification_required` for every model. The game still completes on fallbacks; `pnpm sim` exits 2 and says so.
 - `tsx` opens an IPC pipe, which the local sandbox blocks; run `pnpm sim` outside it.
 
+## Gemini via @ai-sdk/google (ADR 0010)
+
+- `google("gemini-3.5-flash")` from `@ai-sdk/google`; reads `GOOGLE_GENERATIVE_AI_API_KEY`. Docs: `node_modules/@ai-sdk/google/docs/15-google.mdx`.
+- Gemini 3+: `providerOptions.google.thinkingConfig.thinkingLevel` (`minimal` is rejected by 3.8 Flash); Gemini 2.5: `thinkingBudget`.
+- Thinking tokens are in `providerMetadata.google.usageMetadata.thoughtsTokenCount`.
+- On this key (2026-10-04): Pro models 429 (no quota), 3.7/3.8 Flash 503 (overloaded), 3.5 Flash and 3.5 Flash-Lite fine. List models with `GET https://generativelanguage.googleapis.com/v1beta/models` and the `x-goog-api-key` header.
+- `act.ts` routes bare ids to Google and `provider/model` ids to the gateway.
+
 ## Next 16 route handlers
 
 - `ctx.params` is a Promise; the generated `RouteContext<"/api/game/[id]/phase">` type is used in the stubs.
