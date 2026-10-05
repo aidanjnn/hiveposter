@@ -72,7 +72,8 @@ export const gatewayCall: ModelCall = async ({ model, system, prompt, schema }) 
     prompt,
     output: Output.object({ schema }),
     timeout: CALL_TIMEOUT_MS,
-    maxRetries: 1,
+    // act() owns the retry policy; SDK retries would stack on top of it and the timeout.
+    maxRetries: 0,
   });
   const gateway = result.providerMetadata?.gateway as { cost?: string | number } | undefined;
   const cost = gateway?.cost !== undefined ? Number(gateway.cost) : undefined;
@@ -299,9 +300,9 @@ export async function actVote(state: GameState, seat: SeatId, opts?: ActOptions)
   const suspicion = blendSuspicion(ctx, r.output.suspicion);
   const order = ranked(suspicion);
   let target: SeatId = validateVote(state, seat, r.output.target) ? r.output.target : order[0];
-  // Chaos knob (ADR 0005): sometimes act on a hunch and vote for the second suspect.
-  const hunch = ctx.rand() < ctx.persona.knobs.chaos / 20 && order.length > 1 && order[1] !== target;
-  if (hunch) target = order[0] === target ? order[1] : order[0];
+  // Chaos knob (ADR 0005): when about to vote the top suspect, sometimes go with a hunch on the second.
+  const hunch = target === order[0] && order.length > 1 && ctx.rand() < ctx.persona.knobs.chaos / 20;
+  if (hunch) target = order[1];
 
   let reason = (r.output.reason ?? "").trim().slice(0, REASON_CHARS) || "Gut feeling.";
   if (ctx.view.word !== null) reason = scrubSecret(state, reason);

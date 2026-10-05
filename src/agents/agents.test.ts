@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame } from "@/engine/game";
 import type { GameEvent, GameState, SeatId } from "@/engine/types";
-import { actClue, blendSuspicion, candidateIndex, type ModelCall } from "./act";
+import { actClue, actVote, blendSuspicion, candidateIndex, type ModelCall } from "./act";
 import { gameSummary, mergeNotes } from "./memory";
 import { PERSONAS } from "./personas";
 import { seatView } from "@/engine/view";
@@ -44,6 +44,11 @@ const failing: ModelCall = async () => {
 
 const WATCH = { mode: "watch" as const, personas: ["juno", "biscuit", "marlowe", "rook"] as const, playerId: "p", seed: "2026-10-05", id: "w", now: 0 };
 const PLAY = { mode: "play" as const, personas: ["juno", "biscuit", "marlowe"] as const, playerId: "p", seed: "2026-10-05", id: "p", now: 0 };
+
+function toVoteWatch(): GameState {
+  const g = createGame({ ...WATCH, personas: [...WATCH.personas] });
+  return { ...g, phase: "vote", traces: [] };
+}
 
 function withImposter(state: GameState, imposter: SeatId): GameState {
   return { ...state, seats: state.seats.map((s) => ({ ...s, role: s.id === imposter ? "imposter" : "civilian" })) };
@@ -115,6 +120,31 @@ describe("act", () => {
 });
 
 describe("runner", () => {
+  it("never streams a private note in watch mode", async () => {
+    const { call } = scripted();
+    const events: GameEvent[] = [];
+    await runUntilHuman(createGame({ ...WATCH, personas: [...WATCH.personas] }), { call, emit: (e) => events.push(e), rand: () => 0.99 });
+    const reads = events.filter((e) => e.type === "suspicion");
+    expect(reads.length).toBeGreaterThan(0);
+    for (const e of reads) expect(JSON.stringify(e)).not.toMatch(/civ note|imp note|talk|vote"|pancake/);
+  });
+
+  it("a hunch moves a top-suspect vote to the second suspect, never the reverse", async () => {
+    const g = toVoteWatch();
+    const call: ModelCall = async () => ({
+      output: { target: "biscuit", reason: "r", confidence: 1, privateNote: "", suspicion: [{ seat: "biscuit", p: 1 }, { seat: "marlowe", p: 0.6 }, { seat: "rook", p: 0.1 }] } as never,
+    });
+    const hunch = await actVote(g, "juno", { call, rand: () => 0 });
+    expect(hunch.move.target).toBe("marlowe");
+    expect(hunch.trace.hunch).toBe(true);
+    const second: ModelCall = async () => ({
+      output: { target: "marlowe", reason: "r", confidence: 1, privateNote: "", suspicion: [{ seat: "biscuit", p: 1 }, { seat: "marlowe", p: 0.6 }, { seat: "rook", p: 0.1 }] } as never,
+    });
+    const kept = await actVote(g, "juno", { call: second, rand: () => 0 });
+    expect(kept.move.target).toBe("marlowe");
+    expect(kept.trace.hunch).toBeUndefined();
+  });
+
   it("plays a whole watch game to reveal and streams events", async () => {
     const { call } = scripted();
     const events: GameEvent[] = [];
