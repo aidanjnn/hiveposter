@@ -12,8 +12,9 @@ import { getGame } from "@/lib/store";
  * Returns { memory: { [persona]: { notes, lobbyLine } } }. A persona whose call fails is
  * left out; the client keeps its old notes. Plan §07.
  *
- * The summary is built from the server's copy of the game, never the submitted view, and
- * each finished game is summarized once, so a made-up or replayed body can't buy model calls.
+ * The summary is built from the server's copy of the game, never the submitted view. Each
+ * persona is summarized once per game; a retry returns the cached summaries and re-asks only
+ * for failed ones, at most three attempts, so a made-up or replayed body can't buy model calls.
  * A recycled instance has no copy; the client just keeps its old notes.
  */
 export const maxDuration = 30;
@@ -23,10 +24,15 @@ export const maxDuration = 30;
 const MAX_BODY_BYTES = 64_000;
 const personaId = z.enum(["juno", "biscuit", "marlowe", "rook"]);
 
+type Memory = { notes: string[]; lobbyLine: string };
+/** Per finished game: summaries that succeeded, attempts made, and whether one is running. */
+type GameMemory = { memory: Partial<Record<PersonaId, Memory>>; attempts: number; busy: boolean };
+const MAX_ATTEMPTS = 3;
+
 declare global {
-  var __memorized: Set<string> | undefined;
+  var __memorized: Map<string, GameMemory> | undefined;
 }
-const memorized = (globalThis.__memorized ??= new Set());
+const memorized = (globalThis.__memorized ??= new Map());
 
 const Body = z.object({
   view: z.object({ id: z.string().min(1).max(64) }).passthrough(),
@@ -44,17 +50,25 @@ export async function POST(req: Request) {
   if (!parsed.success) return badRequest("Memory needs a finished game.");
   const id = parsed.data.view.id;
   const state = getGame(id);
-  if (!state || state.phase !== "reveal" || !humanSeat(state) || memorized.has(id)) {
-    return badRequest("Memory needs a finished game.");
-  }
-  for (const done of memorized) if (!getGame(done)) memorized.delete(done);
-  memorized.add(id);
+  if (!state || state.phase !== "reveal" || !humanSeat(state)) return badRequest("Memory needs a finished game.");
+  for (const done of memorized.keys()) if (!getGame(done)) memorized.delete(done);
+  const record: GameMemory = memorized.get(id) ?? { memory: {}, attempts: 0, busy: false };
+  memorized.set(id, record);
   const view = viewOf(state);
   const personas = [...new Set(view.seats.map((s) => s.persona).filter((p): p is PersonaId => Boolean(p)))];
-  const results = await Promise.allSettled(
-    personas.map(async (p) => [p, await summarizeForPersona(p, view, parsed.data.notes[p] ?? [])] as const),
-  );
-  const memory: Record<string, { notes: string[]; lobbyLine: string }> = {};
-  for (const r of results) if (r.status === "fulfilled") memory[r.value[0]] = r.value[1];
-  return Response.json({ memory });
+  // A retry gets the cached summaries back and only re-asks for the ones that failed.
+  const missing = personas.filter((p) => !record.memory[p]);
+  if (missing.length && !record.busy && record.attempts < MAX_ATTEMPTS) {
+    record.busy = true;
+    record.attempts += 1;
+    try {
+      const results = await Promise.allSettled(
+        missing.map(async (p) => [p, await summarizeForPersona(p, view, parsed.data.notes[p] ?? [])] as const),
+      );
+      for (const r of results) if (r.status === "fulfilled") record.memory[r.value[0]] = r.value[1];
+    } finally {
+      record.busy = false;
+    }
+  }
+  return Response.json({ memory: record.memory });
 }
