@@ -84,6 +84,10 @@ export type ModelCall = <S extends z.ZodType>(req: {
  * (quota GenerateRequestsPerMinutePerProjectPerModel-FreeTier); a game makes ~21 calls in ~20 s,
  * so unpaced it starts failing within a minute. MODEL_RPM overrides; 0 disables. Gateway ids
  * ("provider/model") aren't paced.
+ *
+ * The count is per server instance. Two instances sharing a key can together exceed the
+ * quota; the extra calls get a 429, retry once, then fall back. A shared counter needs the
+ * KV store that is already the first post-deadline upgrade (ADR 0007).
  */
 const RPM = Number(process.env.MODEL_RPM ?? 14);
 const WINDOW_MS = 60_000;
@@ -91,17 +95,20 @@ const recent = new Map<string, number[]>();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function pace(model: string, now: () => number = Date.now): Promise<void> {
-  if (model.includes("/") || !(RPM > 0)) return;
+/** Waits for a request slot. Returns false, without taking one, if none opens before `deadline`. */
+export async function pace(model: string, now: () => number = Date.now, deadline = Infinity): Promise<boolean> {
+  if (model.includes("/") || !(RPM > 0)) return true;
   for (;;) {
     const t = now();
     const stamps = (recent.get(model) ?? []).filter((s) => t - s < WINDOW_MS);
     if (stamps.length < RPM) {
       stamps.push(t);
       recent.set(model, stamps);
-      return;
+      return true;
     }
-    await sleep(WINDOW_MS - (t - stamps[0]) + 50);
+    const wait = WINDOW_MS - (t - stamps[0]) + 50;
+    if (t + wait > deadline) return false;
+    await sleep(wait);
   }
 }
 
@@ -113,19 +120,25 @@ function retryDelayMs(err: unknown): number | undefined {
   return s ? Number(s) * 1000 : 10_000;
 }
 
-const MAX_RATE_WAIT_MS = 30_000;
+/**
+ * Most a call may spend waiting for a slot or a 429 retry, on top of CALL_TIMEOUT_MS. Keeps a
+ * memory summary inside its 30 s route limit and lets a turn fall back instead of stalling.
+ */
+const MAX_RATE_WAIT_MS = 15_000;
+const rateLimited = () => new Error("No model request slot within the wait budget.");
 
 /** The real model call through the AI SDK (Google directly, or the gateway). */
 export const modelCall: ModelCall = async (req) => {
-  await pace(req.model);
+  const deadline = Date.now() + MAX_RATE_WAIT_MS;
+  if (!(await pace(req.model, Date.now, deadline))) throw rateLimited();
   try {
     return await callOnce(req);
   } catch (err) {
-    // One retry on a rate limit, after the delay Google asks for (capped).
+    // One retry on a rate limit, after the delay Google asks for, if it fits the budget.
     const wait = retryDelayMs(err);
-    if (wait === undefined || wait > MAX_RATE_WAIT_MS) throw err;
+    if (wait === undefined || Date.now() + wait > deadline) throw err;
     await sleep(wait);
-    await pace(req.model);
+    if (!(await pace(req.model, Date.now, deadline))) throw rateLimited();
     return callOnce(req);
   }
 };

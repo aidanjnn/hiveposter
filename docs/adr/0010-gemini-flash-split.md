@@ -23,8 +23,9 @@ at 0.8 from the clues "grid" and "syrup" and bluffed with "iron".
 - Bare `gemini-…` ids go straight to Google through `@ai-sdk/google`, which reads
   `GOOGLE_GENERATIVE_AI_API_KEY`. Any `provider/model` id still routes through the AI Gateway, so
   switching back to Claude is an env change (`MODEL_CIVILIAN`, `MODEL_IMPOSTER`, `MODEL_MEMORY`).
-- The split is justified by `pnpm sim` across all-Lite, the split, and all-Flash. Results are in
-  the README.
+- The split is not yet measured. It rests on the probes above and the reasoning carried from
+  0004. `pnpm sim` across all-Lite, the split, and all-Flash is the evidence that should confirm
+  or change it; until those rows are in the README, treat the split as a judgment call.
 
 ## Consequences
 
@@ -32,5 +33,7 @@ at 0.8 from the clues "grid" and "syrup" and bluffed with "iron".
 - The reasoning from 0004 still holds (schema-following every turn, one isolated context per
   seat, strongest model on the imposter), but the strongest tier available to this key is Flash.
 - Free-tier keys rate-limit per minute, so the simulator plays one game at a time by default.
+  Pacing counts requests per server instance, not per key; several instances can together hit
+  the quota, and those calls fall back. A shared counter waits on the KV store.
 - Gateway cost reporting doesn't apply; the sim reports tokens per game instead.
 - The key was shared in chat and should be rotated after submission.

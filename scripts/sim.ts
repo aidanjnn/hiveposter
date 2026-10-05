@@ -53,9 +53,11 @@ async function playOne(i: number): Promise<GameState> {
 }
 
 async function main() {
-  const needs = [models.civilian, models.imposter].some((m) => m.includes("/")) ? "AI_GATEWAY_API_KEY" : "GOOGLE_GENERATIVE_AI_API_KEY";
-  if (!process.env[needs]) {
-    console.error(`${needs} is not set. Add it to .env.local.`);
+  // Each seat's model needs its own key; a missing one would quietly turn that seat into fallbacks.
+  const needs = new Set([models.civilian, models.imposter].map((m) => (m.includes("/") ? "AI_GATEWAY_API_KEY" : "GOOGLE_GENERATIVE_AI_API_KEY")));
+  const missing = [...needs].filter((k) => !process.env[k]);
+  if (missing.length) {
+    console.error(`Set ${missing.join(" and ")} in .env.local.`);
     process.exit(1);
   }
   console.log(`Simulating ${games} games · civilians ${short(models.civilian)} · imposter ${short(models.imposter)}\n`);

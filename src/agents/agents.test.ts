@@ -71,6 +71,9 @@ describe("act", () => {
       await vi.advanceTimersByTimeAsync(60_000);
       await waiting;
       expect(done).toBe(true);
+      // With a deadline it gives up rather than waiting out the window.
+      for (let i = 0; i < 14; i++) await pace("gemini-test-c", now);
+      expect(await pace("gemini-test-c", now, t + 10_000)).toBe(false);
     } finally {
       vi.useRealTimers();
     }
