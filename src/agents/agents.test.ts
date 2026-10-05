@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createGame } from "@/engine/game";
 import type { GameEvent, GameState, SeatId } from "@/engine/types";
 import { actClue, actVote, blendSuspicion, candidateIndex, type ModelCall } from "./act";
-import { gameSummary, mergeNotes } from "./memory";
+import { gameSummary, mergeNotes, summarizeForPersona } from "./memory";
 import { PERSONAS } from "./personas";
 import { seatView } from "@/engine/view";
 import { applyHumanMove, MoveError, runUntilHuman } from "./runner";
@@ -190,6 +190,13 @@ describe("runner", () => {
     expect(["reveal", "lastGuess"]).toContain(s.phase);
   });
 
+  it("scrubs the secret word from human messages before any agent sees them", () => {
+    const base = withImposter(createGame({ ...PLAY, personas: [...PLAY.personas] }), "juno");
+    const s = applyHumanMove({ ...base, phase: "discuss" }, { type: "message", text: "obviously Waffles, @juno?" });
+    expect(s.messages.at(-1)?.text).not.toMatch(/waffle/i);
+    expect(JSON.stringify(seatView(s, "juno"))).not.toMatch(/waffle/i);
+  });
+
   it("refuses human moves with a reason", () => {
     const s = createGame({ ...PLAY, personas: [...PLAY.personas] });
     const notMine = s.order[0] === "you" ? undefined : "It's not your turn.";
@@ -216,5 +223,14 @@ describe("memory", () => {
     const text = gameSummary("juno", publicView(end, "audience"));
     expect(text).toContain("Secret word: waffle");
     expect(text).toContain("Your private notes (Juno)");
+  });
+
+  it("keeps the secret word out of stored notes and the lobby line", async () => {
+    const { call } = scripted();
+    const end = await runUntilHuman(createGame({ ...WATCH, personas: [...WATCH.personas] }), { call, rand: () => 0.99 });
+    const { publicView } = await import("@/engine/view");
+    const leaky: ModelCall = async () => ({ output: { notes: ["said syrup for waffle"], lobbyLine: "Waffles again?" } as never, costUsd: 0 });
+    const out = await summarizeForPersona("juno", publicView(end, "audience"), [], leaky);
+    expect(JSON.stringify(out)).not.toMatch(/waffle/i);
   });
 });
