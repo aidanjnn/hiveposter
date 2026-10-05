@@ -42,7 +42,7 @@ export function WatchPanel({ game, view }: { game: Game; view: PublicView }) {
 
       {picking === "call" && !canCall ? null : picking ? (
         <div className="grid gap-2">
-          <span className="text-[13px] text-ink-2">
+          <span className="text-ink-2">
             {picking === "call" ? `Who's lying? A right call now is worth ${worth}.` : "Whose seat do you want?"}
           </span>
           <div className="grid grid-cols-4 gap-1.5">
@@ -51,7 +51,7 @@ export function WatchPanel({ game, view }: { game: Game; view: PublicView }) {
                 key={s}
                 type="button"
                 onClick={() => choose(s)}
-                className="grid justify-items-center gap-1 rounded border border-line px-1 py-2 text-[12px] hover:border-ink-3"
+                className="grid justify-items-center gap-1 rounded border border-line px-1 py-2 text-label hover:border-ink-3"
               >
                 <Dot seat={s} />
                 {nameOf(s)}
@@ -60,7 +60,7 @@ export function WatchPanel({ game, view }: { game: Game; view: PublicView }) {
           </div>
         </div>
       ) : (
-        <span className="text-[13px] text-ink-2">
+        <span className="text-ink-2">
           {view.watchCall
             ? `Your call: ${nameOf(view.watchCall.target)}, locked in ${view.watchCall.lockedAtPhase === "clue1" ? "round 1" : view.watchCall.lockedAtPhase === "clue2" ? "round 2" : "discussion"}.`
             : canCall
@@ -69,7 +69,7 @@ export function WatchPanel({ game, view }: { game: Game; view: PublicView }) {
         </span>
       )}
 
-      {refused ? <span className="text-[13px] text-ink-3">{refused}</span> : null}
+      {refused ? <span className="text-ink-3">{refused}</span> : null}
 
       {game.table ? (
         <>

@@ -133,13 +133,12 @@ ${cluesBlock(view)}${notesBlock(view)}
 Give your single best guess at the secret word.`;
 }
 
-/** Post-game. The game is over, so the summary may include everything. */
-export function memoryPrompt(persona: Persona, gameSummary: string, existingNotes: string[]): string {
+/** Post-game. The game is over, so the summary may include everything. The persona's voice is in the system prompt. */
+export function memoryPrompt(gameSummary: string, existingNotes: string[]): string {
   const existing = existingNotes.length
     ? `\nNotes you already have about the human:\n${existingNotes.map((n) => `- ${n}`).join("\n")}`
     : "";
-  return `You are ${persona.name}. ${persona.voice}
-A game of Imposter just ended. Here is what happened:
+  return `A game of Imposter just ended. Here is what happened:
 ${gameSummary}
 ${existing}
 

@@ -59,20 +59,20 @@ export function Discussion({ game, view, side }: { game: Game; view: PublicView;
       <div ref={listRef} className="grid gap-3">
         {view.messages.map((m, i) => (
           <div key={`${m.seat}-${i}`} className="appear grid gap-0.5">
-            <span className="flex items-center gap-1.5 text-[12px] text-ink-3">
+            <span className="flex items-center gap-1.5 text-label text-ink-3">
               <Dot seat={m.seat} />
               {nameOf(m.seat)}
               {m.replyTo ? <span>→ {nameOf(m.replyTo)}</span> : null}
             </span>
-            <p className={`text-[14px] leading-[19px] ${m.seat === self ? "text-ink-2" : "text-ink"}`}>{m.text}</p>
+            <p className={m.seat === self ? "text-ink-2" : "text-ink"}>{m.text}</p>
           </div>
         ))}
-        {game.busy ? <span className="text-[12px] text-ink-3">{typing ? "Someone is typing…" : "The table is talking…"}</span> : null}
+        {game.busy ? <span className="text-label text-ink-3">{typing ? "Someone is typing…" : "The table is talking…"}</span> : null}
       </div>
 
       {self ? (
         <form onSubmit={submit} className="mt-auto grid gap-2">
-          <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink-3">
+          <div className="flex flex-wrap items-center gap-3 text-label text-ink-3">
             {view.seats
               .filter((s) => s.persona)
               .map((s) => (
@@ -102,7 +102,7 @@ export function Discussion({ game, view, side }: { game: Game; view: PublicView;
               Send
             </Button>
           </div>
-          <span className="min-h-[18px] text-[13px] text-ink-3">{error}</span>
+          <span className="min-h-5 text-ink-3">{error}</span>
         </form>
       ) : null}
     </Shell>

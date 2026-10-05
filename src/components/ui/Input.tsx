@@ -8,7 +8,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
         ref={ref}
         {...props}
         aria-invalid={invalid || undefined}
-        className={`min-w-0 rounded border bg-surface-2 px-2.5 py-2 text-[14px] leading-[18px] text-ink placeholder:text-ink-3 outline-none focus:border-ink-3 ${invalid ? "border-accent" : "border-transparent"} ${className}`}
+        className={`min-w-0 rounded border bg-surface-2 px-2.5 py-2 text-body text-ink placeholder:text-ink-3 outline-none focus:border-ink-3 ${invalid ? "border-accent" : "border-transparent"} ${className}`}
       />
     );
   },

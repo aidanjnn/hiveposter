@@ -1,5 +1,5 @@
 import type { PersonaId, Role } from "@/engine/types";
-import { todaySeed } from "@/engine/calendar";
+import { isDailySeed } from "@/engine/calendar";
 import { mergeNotes } from "./notes";
 
 /**
@@ -54,6 +54,12 @@ function localDate(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function previousDay(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  return localDate(d);
+}
+
 export function getStreak(): { count: number; lastPlayed?: string } {
   const s = read<{ count: number; lastPlayed?: string }>("streak", { count: 0 });
   if (!s.lastPlayed) return s;
@@ -70,16 +76,17 @@ export function getHistory(): GameSummary[] {
 /**
  * Record a finished game once. Returns false if it was already recorded (a refresh on the
  * reveal screen), so callers skip the other one-time effects too. The streak counts days on
- * which you played today's daily table; practice tables and Watch games don't touch it.
+ * which you played the daily table; practice tables and Watch games don't touch it. It keys
+ * on the table's own date, so a game dealt before midnight still counts for that day.
  */
 export function recordGame(summary: GameSummary): boolean {
   const history = getHistory();
   if (history.some((h) => h.id === summary.id)) return false;
   write("history", [summary, ...history].slice(0, 100));
-  const today = localDate();
-  const streak = getStreak();
-  if (summary.mode === "play" && summary.seed === todaySeed() && streak.lastPlayed !== today) {
-    write("streak", { count: streak.count + 1, lastPlayed: today });
+  const day = summary.mode === "play" && isDailySeed(summary.seed) ? summary.seed : null;
+  const streak = read<{ count: number; lastPlayed?: string }>("streak", { count: 0 });
+  if (day && (!streak.lastPlayed || day > streak.lastPlayed)) {
+    write("streak", { count: streak.lastPlayed === previousDay(day) ? streak.count + 1 : 1, lastPlayed: day });
   }
   return true;
 }

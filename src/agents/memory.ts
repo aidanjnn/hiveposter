@@ -44,7 +44,7 @@ export async function summarizeForPersona(
   const { output } = await call({
     model: MODELS.memory,
     system: `You are ${p.name}. ${p.voice}`,
-    prompt: memoryPrompt(p, gameSummary(persona, view), existingNotes),
+    prompt: memoryPrompt(gameSummary(persona, view), existingNotes),
     schema: MemoryUpdate,
   });
   // Notes ride into every later system prompt, the imposter's included; a repeat word set

@@ -40,10 +40,10 @@ export function Reveal({ game, view }: { game: Game; view: PublicView }) {
   return (
     <Shell left="Reveal" right={setLabel(view)}>
       <div className="appear grid gap-1.5">
-        <Label red={view.result?.imposter === self}>{v.label}</Label>
+        <Label>{v.label}</Label>
         <span className="text-display">{v.headline}</span>
         <p className="text-ink-2">{v.detail}</p>
-        <p className="text-[13px] text-ink-3">
+        <p className="text-ink-3">
           The word was <span className="text-ink">{view.word}</span>.
           {self ? ` Score +${scoreOf(view)}.` : ""}
           {watching && view.watchCall
