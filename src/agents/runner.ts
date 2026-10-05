@@ -13,7 +13,7 @@ import {
   seatOf,
   takeSeat,
 } from "@/engine/game";
-import { validateClue } from "@/engine/validate";
+import { scrubSecret, validateClue } from "@/engine/validate";
 import { publicView } from "@/engine/view";
 import type { AgentTrace, GameEvent, GameState, HumanMove, SeatId } from "@/engine/types";
 import { actClue, actDiscuss, actLastGuess, actVote, type ActOptions } from "./act";
@@ -248,7 +248,8 @@ export function applyHumanMove(state: GameState, move: HumanMove): GameState {
       if (state.phase !== "discuss") fail("Discussion is over.");
       if (messagesLeft(state, me) <= 0) fail("You're out of messages. Tap I'm sure.");
       if (!move.text.trim()) fail("Say something.");
-      return applyMessage(state, { seat: me, text: move.text, ...(move.replyTo ? { replyTo: move.replyTo } : {}) });
+      // Human text reaches every agent prompt, the imposter's included (ADR 0002).
+      return applyMessage(state, { seat: me, text: scrubSecret(state, move.text), ...(move.replyTo ? { replyTo: move.replyTo } : {}) });
     }
     case "sure":
       if (state.phase !== "discuss") fail("Discussion is over.");

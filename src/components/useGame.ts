@@ -60,6 +60,8 @@ export function useGame() {
     return next;
   }, []);
   const recorded = useRef<string | null>(null);
+  /** The stream in flight; Leave aborts it so a late event can't bring the old table back. */
+  const inflight = useRef<AbortController | null>(null);
 
   /**
    * Once per finished game: history, streak, grudges, detective rating, persona memory.
@@ -98,6 +100,9 @@ export function useGame() {
   }, []);
 
   const reset = useCallback((message?: string) => {
+    inflight.current?.abort();
+    inflight.current = null;
+    setBusy(false);
     setView(null);
     setWaiting(null);
     setTable(null);
@@ -109,8 +114,9 @@ export function useGame() {
     local.rememberGame(null);
   }, []);
 
-  const consume = useCallback(async (res: Response) => {
+  const consume = useCallback(async (res: Response, signal: AbortSignal) => {
     for await (const e of readEvents(res) as AsyncGenerator<GameEvent>) {
+      if (signal.aborted) return;
       switch (e.type) {
         case "clue":
           setView((v) => (v && !v.clues.some((c) => c.seat === e.clue.seat && c.round === e.clue.round) ? { ...v, clues: [...v.clues, e.clue] } : v));
@@ -132,6 +138,7 @@ export function useGame() {
           break;
         case "phase":
           await sleep(PHASE_PAUSE_MS);
+          if (signal.aborted) return;
           finish(e.view);
           setView(merge(e.view));
           break;
@@ -149,6 +156,8 @@ export function useGame() {
   /** POST and stream. Returns a user-facing error for a refused move, else null. */
   const request = useCallback(
     async (url: string, body: unknown): Promise<string | null> => {
+      const ctrl = new AbortController();
+      inflight.current = ctrl;
       setBusy(true);
       setError(null);
       try {
@@ -156,6 +165,7 @@ export function useGame() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(body),
+          signal: ctrl.signal,
         });
         if (res.status === 404) {
           reset("Table reset. Deal again.");
@@ -166,13 +176,16 @@ export function useGame() {
           return j.error ?? "That didn't work.";
         }
         setWaiting(null);
-        await consume(res);
+        await consume(res, ctrl.signal);
         return null;
       } catch {
-        setError("Connection lost. Try again.");
+        if (!ctrl.signal.aborted) setError("Connection lost. Try again.");
         return null;
       } finally {
-        setBusy(false);
+        if (inflight.current === ctrl) {
+          inflight.current = null;
+          setBusy(false);
+        }
       }
     },
     [consume, reset],
@@ -184,7 +197,9 @@ export function useGame() {
       setBusy(true);
       const personas: PersonaId[] = mode === "play" ? PLAY_LINEUP : WATCH_LINEUP;
       const daily = todaySeed();
-      const seed = opts.practice || (mode === "play" && local.playedToday(daily)) ? `practice-${Date.now()}` : daily;
+      // Only Play deals the daily set. Watch on the daily seed would show today's word, and
+      // which seat index is the imposter, before the human plays it.
+      const seed = mode === "watch" || opts.practice || local.playedToday(daily) ? `practice-${Date.now()}` : daily;
       try {
         const res = await fetch("/api/game", {
           method: "POST",
