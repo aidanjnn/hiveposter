@@ -64,12 +64,14 @@ export function create(body: z.infer<typeof CreateBody>): GameState {
  * game lock so an in-flight turn can't overwrite them, and answered with plain JSON.
  */
 export async function applyAside(id: string, move: Extract<HumanMove, { type: "call" | "takeSeat" }>): Promise<Response> {
-  if (!getGame(id)) return badRequest(TABLE_RESET, 404);
+  const arrived = getGame(id);
+  if (!arrived) return badRequest(TABLE_RESET, 404);
   return withGame(id, async () => {
     const state = getGame(id);
     if (!state) return badRequest(TABLE_RESET, 404);
     try {
-      const next = applyHumanMove(state, move);
+      // A call waits here behind any streaming turn; judge it by the phase it arrived in.
+      const next = applyHumanMove(state, move, arrived.phase);
       putGame(next);
       return Response.json({ view: viewOf(next) });
     } catch (err) {

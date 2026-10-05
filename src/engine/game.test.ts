@@ -261,6 +261,9 @@ describe("watch mode", () => {
     expect(lockCall(g, "rook", "discuss").watchCall?.lockedAtPhase).toBe("discuss");
     expect(() => lockCall(g, "rook", "clue1")).toThrow("Calls closed at the vote.");
     expect(() => lockCall(g, "rook")).toThrow("Calls closed at the vote.");
+    // A call that waited behind a streaming turn is judged by the phase it arrived in.
+    expect(lockCall(g, "rook", "clue2", "discuss").watchCall?.lockedAtPhase).toBe("clue2");
+    expect(() => lockCall(g, "rook", "clue1", "discuss")).toThrow("Calls closed at the vote.");
     const early = withImposter(createGame(WATCH), "rook");
     expect(lockCall(early, "rook", "discuss").watchCall?.lockedAtPhase).toBe("clue1");
   });
