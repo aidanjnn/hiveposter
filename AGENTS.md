@@ -20,10 +20,11 @@ snapshots, not verification evidence.
 
 ## Repository status and scope
 
-The repository is a scaffold: Next.js 16 App Router, AI SDK 7, Zod 4, Vitest.
-Types, personas, and Zod schemas are real; every other module throws
-`TODO(area): name`. Inspect the current tree before claiming a capability
-exists. Continue from the schedule in plan §12.
+The game is implemented end to end: Next.js 16 App Router, AI SDK 7, Zod 4,
+Vitest. Engine, agents, routes, screens, persona memory and the simulator are
+real; [docs/validation.md](docs/validation.md) records what each has been
+proven to do and what is still untested. Inspect the current tree before
+claiming a capability exists; plan §12's schedule is history, not a to-do list.
 
 Implement the requested work and its necessary validation. Reuse passing checks
 while their inputs remain unchanged. A request to build does not itself request
@@ -79,7 +80,7 @@ invoke external review bots or delegate work unless requested.
   (AI SDK 7: structured output is `generateText` + `Output.object`; the gateway
   reads `AI_GATEWAY_API_KEY` and takes `"provider/model"` strings).
 - Next 16: read `node_modules/next/dist/docs/` before framework work. Route
-  `params` are a Promise. Streaming routes set `maxDuration = 60`; do not use
+  `params` are a Promise. Streaming routes set `maxDuration = 120` and end at the first phase change; do not use
   the Edge runtime.
 - Design system (plan §00): single dark theme, tokens in `globals.css`, three
   type sizes (`text-body`, `text-heading`, `text-display`), 4px radius, 20px
