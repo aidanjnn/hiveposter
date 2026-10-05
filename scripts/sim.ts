@@ -78,7 +78,8 @@ async function main() {
   const clueTraces = traces.filter((t) => t.phase === "clue1" || t.phase === "clue2");
   const impWins = results.filter((g) => g.result?.winner === "imposter").length;
   const caughtGuessed = results.filter((g) => g.result?.ejected === g.result?.imposter && g.lastGuess?.correct).length;
-  const retried = clueTraces.filter((t) => t.retried).length;
+  // A rejection is any clue turn where the model's pick didn't play: a retry or a demotion.
+  const rejected = clueTraces.filter((t) => t.retried || t.demoted).length;
   const fallbacks = traces.filter((t) => t.fallback).length;
   const latency = traces.filter((t) => !t.fallback).map((t) => t.latencyMs);
   const avgLatency = latency.length ? latency.reduce((a, b) => a + b, 0) / latency.length : NaN;
@@ -90,7 +91,7 @@ async function main() {
   console.log(`\n| Config (civilian / imposter) | Imposter win rate | Caught but guessed | Clue rejections | Fallback moves | Avg turn latency | Tokens / game | Cost / game |`);
   console.log(`| --- | --- | --- | --- | --- | --- | --- | --- |`);
   console.log(
-    `| ${short(models.civilian)} / ${short(models.imposter)} | ${pct(impWins, results.length)} (${impWins}/${results.length}) | ${caughtGuessed} | ${pct(retried, clueTraces.length)} | ${pct(fallbacks, traces.length)} | ${Number.isFinite(avgLatency) ? `${(avgLatency / 1000).toFixed(1)}s` : "n/a"} | ${Math.round(tokensPerGame).toLocaleString()} | ${Number.isFinite(costPerGame) ? `$${costPerGame.toFixed(4)}` : "n/a"} |`,
+    `| ${short(models.civilian)} / ${short(models.imposter)} | ${pct(impWins, results.length)} (${impWins}/${results.length}) | ${caughtGuessed} | ${pct(rejected, clueTraces.length)} | ${pct(fallbacks, traces.length)} | ${Number.isFinite(avgLatency) ? `${(avgLatency / 1000).toFixed(1)}s` : "n/a"} | ${Math.round(tokensPerGame).toLocaleString()} | ${Number.isFinite(costPerGame) ? `$${costPerGame.toFixed(4)}` : "n/a"} |`,
   );
 
   console.log(`\nVote accuracy as civilian (voted for the real imposter):`);

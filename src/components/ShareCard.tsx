@@ -42,11 +42,11 @@ export function ShareCard({ view, onPlay, onWatch }: { view: PublicView; onPlay:
         <span className="text-ink-3">Streak {streak}</span>
       </div>
       {grudge ? (
-        <div className="flex items-center gap-2 text-[14px]">
+        <div className="flex items-center gap-2">
           <Dot seat={grudge} />
           <span>
             {PERSONAS[grudge].name} will remember this.
-            <small className="block text-[12px] text-ink-3">Grudge: {local.getGrudge(grudge)} game{local.getGrudge(grudge) === 1 ? "" : "s"}</small>
+            <small className="block text-label text-ink-3">Grudge: {local.getGrudge(grudge)} game{local.getGrudge(grudge) === 1 ? "" : "s"}</small>
           </span>
         </div>
       ) : null}

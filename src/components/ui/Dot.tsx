@@ -12,7 +12,3 @@ const SEAT_BG: Record<SeatId, string> = {
 export function Dot({ seat, className = "" }: { seat: SeatId; className?: string }) {
   return <i aria-hidden="true" className={`inline-block size-2 shrink-0 rounded-full ${SEAT_BG[seat]} ${className}`} />;
 }
-
-export function seatColor(seat: SeatId): string {
-  return `var(--seat-${seat})`;
-}

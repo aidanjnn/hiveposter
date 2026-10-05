@@ -18,7 +18,7 @@ Working notes for the implementation. Verified against the installed packages, n
 - Model IDs live on the gateway (checked 2026-10-03): `anthropic/claude-haiku-4.5`, `anthropic/claude-sonnet-5.5`.
   Re-list with `curl -s https://ai-gateway.vercel.sh/v1/models | jq -r '.data[].id'`.
 - Field `.describe()` on Zod schemas is passed to the model; use it (see `src/agents/schemas.ts`).
-- Request options (`03-ai-sdk-core/25-settings.mdx`): `timeout: ms` creates the abort signal internally; `maxRetries` defaults to 2 (we use 1). `result.usage.inputTokens/outputTokens`; gateway cost, when reported, is read from `providerMetadata.gateway.cost`.
+- Request options (`03-ai-sdk-core/25-settings.mdx`): `timeout: ms` creates the abort signal internally; `maxRetries` defaults to 2 (we use 0: `act()` owns the single retry). `result.usage.inputTokens/outputTokens`; gateway cost, when reported, is read from `providerMetadata.gateway.cost`.
 - Structured-output failures throw `NoObjectGeneratedError`; `act()` treats any throw as a failed call and falls back.
 - Schemas avoid numeric ranges, lengths and exhaustive record keys (provider JSON-schema support varies); `act()` clamps and validates instead. Suspicion is an array of `{ seat, p }`, not a record.
 - Gateway accounts without a card on file return 403 `customer_verification_required` for every model. The game still completes on fallbacks; `pnpm sim` exits 2 and says so.
@@ -35,7 +35,7 @@ Working notes for the implementation. Verified against the installed packages, n
 ## Next 16 route handlers
 
 - `ctx.params` is a Promise; the generated `RouteContext<"/api/game/[id]/phase">` type is used in the stubs.
-- `export const maxDuration = 60` on the two streaming routes (plan §08).
+- `export const maxDuration = 120` on the two streaming routes (plan §08 said 60; each request now ends at the first phase change, and 120 leaves room for a slow phase). The memory route uses 30.
 - Streaming a `ReadableStream` as `text/event-stream` works on the default Node.js runtime; don't set `runtime = "edge"`.
 
 ## Decisions carried from the plan

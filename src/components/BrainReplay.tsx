@@ -75,7 +75,7 @@ export function BrainReplay({ view }: { view: PublicView }) {
       {imposter ? (
         <div className="grid gap-2">
           {[...lines.entries()].map(([seat, values]) => (
-            <div key={seat} className="grid grid-cols-[132px_1fr_32px] items-center gap-2 text-[12px] text-ink-2">
+            <div key={seat} className="grid grid-cols-[132px_1fr_32px] items-center gap-2 text-label text-ink-2">
               <span className="flex items-center gap-1.5 truncate">
                 <Dot seat={seat} />
                 {nameOf(seat)} → {imposter === "you" ? "you" : nameOf(imposter)}
@@ -99,7 +99,7 @@ export function BrainReplay({ view }: { view: PublicView }) {
         </p>
       ) : null}
 
-      <div role="tablist" aria-label="Replay stage" className="grid grid-cols-4 overflow-hidden rounded border border-line text-center text-[12px]">
+      <div role="tablist" aria-label="Replay stage" className="grid grid-cols-4 overflow-hidden rounded border border-line text-center text-label">
         {STOPS.map((s) => (
           <button
             key={s.key}
@@ -114,7 +114,7 @@ export function BrainReplay({ view }: { view: PublicView }) {
       </div>
 
       <div className="grid gap-4">
-        {atStop.length === 0 ? <p className="text-[13px] text-ink-3">No agent thinking at this stage.</p> : null}
+        {atStop.length === 0 ? <p className="text-ink-3">No agent thinking at this stage.</p> : null}
         {atStop.map((t, i) => (
           <div key={`${t.seat}-${t.at}-${i}`} className="grid gap-2">
             <Note
@@ -122,7 +122,7 @@ export function BrainReplay({ view }: { view: PublicView }) {
                 <span className="flex items-center gap-1.5">
                   <Dot seat={t.seat} />
                   {nameOf(t.seat)}
-                  {t.seat === imposter ? <span className="text-accent">· imposter</span> : null}
+                  {t.seat === imposter ? <span className="text-ink-3">· imposter</span> : null}
                 </span>
               }
             >

@@ -45,7 +45,7 @@ export function Lobby({ onStart, busy, notice }: { onStart: (mode: Mode, practic
     <Shell left={date} right={`Set #${puzzleNumber(seed)}`}>
       <Heading>{mode === "play" ? "Tonight's table" : "Watch the agents"}</Heading>
 
-      <div role="tablist" aria-label="Mode" className="grid grid-cols-2 gap-1 rounded bg-surface-2 p-[3px] text-[13px]">
+      <div role="tablist" aria-label="Mode" className="grid grid-cols-2 gap-1 rounded bg-surface-2 p-[3px]">
         {(["play", "watch"] as const).map((m) => (
           <button
             key={m}
@@ -75,11 +75,11 @@ export function Lobby({ onStart, busy, notice }: { onStart: (mode: Mode, practic
                 <Dot seat={id} />
                 {p.name}
               </span>
-              <span className="text-[12px] leading-4 text-ink-3">
+              <span className="text-label text-ink-3">
                 {p.tagline}
                 {grudge > 0 ? ` · grudge ${grudge} game${grudge === 1 ? "" : "s"}` : ""}
               </span>
-              {mode === "play" ? <q className="text-[12px] leading-4 text-ink-2">{stats?.lines[id] ?? p.defaultLobbyLine}</q> : null}
+              {mode === "play" ? <q className="text-label text-ink-2">{stats?.lines[id] ?? p.defaultLobbyLine}</q> : null}
             </li>
           );
         })}
@@ -93,7 +93,7 @@ export function Lobby({ onStart, busy, notice }: { onStart: (mode: Mode, practic
             ? `Streak ${stats?.streak ?? 0} · Caught ${stats?.caught.caught ?? 0} of ${stats?.caught.total ?? 0}`
             : `Detective ${stats && stats.detective.total ? Math.round((stats.detective.right / stats.detective.total) * 100) : 0}% · ${stats?.detective.total ?? 0} calls`}
         </span>
-        {practice ? <span className="text-[13px] text-ink-3">You played today&apos;s table. This one is practice.</span> : null}
+        {practice ? <span className="text-ink-3">You played today&apos;s table. This one is practice.</span> : null}
         <Button variant={mode === "play" ? "red" : "primary"} disabled={busy} onClick={() => onStart(mode, practice)}>
           {busy ? "Dealing…" : mode === "play" ? "Deal" : "Start the game"}
         </Button>
