@@ -1,0 +1,189 @@
+{
+ "title": "Imposter: The Table",
+ "width": 1420,
+ "height": 640,
+ "seed": 3,
+ "groups": [
+  {
+   "x": 20,
+   "y": 90,
+   "w": 240,
+   "h": 500,
+   "label": "Browser"
+  },
+  {
+   "x": 320,
+   "y": 90,
+   "w": 690,
+   "h": 500,
+   "label": "Next.js server"
+  },
+  {
+   "x": 1080,
+   "y": 260,
+   "w": 310,
+   "h": 330,
+   "label": "External"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "ui",
+   "x": 40,
+   "y": 170,
+   "w": 200,
+   "h": 95,
+   "label": "Game UI",
+   "sub": "React screens\nuseGame",
+   "color": "blue"
+  },
+  {
+   "id": "ls",
+   "x": 45,
+   "y": 420,
+   "w": 190,
+   "h": 125,
+   "label": "localStorage",
+   "sub": "streak \u00b7 notes\ngrudges",
+   "shape": "cylinder",
+   "color": "green"
+  },
+  {
+   "id": "api",
+   "x": 350,
+   "y": 140,
+   "w": 230,
+   "h": 95,
+   "label": "Game routes",
+   "sub": "/api/game \u00b7 /phase\n/human (SSE)",
+   "color": "yellow"
+  },
+  {
+   "id": "mem",
+   "x": 350,
+   "y": 440,
+   "w": 230,
+   "h": 95,
+   "label": "Memory route",
+   "sub": "/api/memory",
+   "color": "yellow"
+  },
+  {
+   "id": "store",
+   "x": 760,
+   "y": 115,
+   "w": 220,
+   "h": 110,
+   "label": "Game store",
+   "sub": "in-memory Map",
+   "shape": "cylinder",
+   "color": "green"
+  },
+  {
+   "id": "runner",
+   "x": 760,
+   "y": 290,
+   "w": 220,
+   "h": 95,
+   "label": "Agent runner",
+   "sub": "runUntilHuman \u00b7 act()\npersonas \u00b7 memory",
+   "color": "violet"
+  },
+  {
+   "id": "engine",
+   "x": 760,
+   "y": 465,
+   "w": 220,
+   "h": 95,
+   "label": "Game engine",
+   "sub": "rules \u00b7 SeatView\nvalidate",
+   "color": "gray"
+  },
+  {
+   "id": "sim",
+   "x": 1110,
+   "y": 130,
+   "w": 240,
+   "h": 85,
+   "label": "pnpm sim",
+   "sub": "headless eval harness",
+   "color": "gray"
+  },
+  {
+   "id": "gw",
+   "x": 1115,
+   "y": 300,
+   "w": 240,
+   "h": 85,
+   "label": "Vercel AI Gateway",
+   "color": "orange"
+  },
+  {
+   "id": "claude",
+   "x": 1115,
+   "y": 460,
+   "w": 240,
+   "h": 100,
+   "label": "Claude",
+   "sub": "Haiku 4.5 \u00b7 Sonnet 5.5",
+   "shape": "ellipse",
+   "color": "violet"
+  }
+ ],
+ "edges": [
+  {
+   "from": "ui",
+   "to": "api",
+   "label": "POST \u00b7 SSE",
+   "both": true,
+   "ly": -14
+  },
+  {
+   "from": "ui",
+   "to": "mem",
+   "label": "after reveal"
+  },
+  {
+   "from": "ui",
+   "to": "ls",
+   "both": true
+  },
+  {
+   "from": "api",
+   "to": "store",
+   "label": "get / put",
+   "ly": -14
+  },
+  {
+   "from": "api",
+   "to": "runner",
+   "label": "advance"
+  },
+  {
+   "from": "mem",
+   "to": "runner",
+   "label": "summarize"
+  },
+  {
+   "from": "runner",
+   "to": "engine",
+   "label": "seat view \u00b7 apply",
+   "both": true
+  },
+  {
+   "from": "runner",
+   "to": "gw",
+   "label": "generateText",
+   "ly": -14
+  },
+  {
+   "from": "gw",
+   "to": "claude"
+  },
+  {
+   "from": "sim",
+   "to": "runner",
+   "dashed": true
+  }
+ ]
+}
